@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width">
   <title>Project Notes</title>
   <style>
-    :root{
+:root{
   --main-color: #4d4e53;
 }
 
@@ -238,9 +238,8 @@ background: #000046;  /* fallback for old browsers */
 background: #000428;  /* fallback for old browsers */
 background: -webkit-linear-gradient(to right, #004e92, #000428);  /* Chrome 10-25, Safari 5.1-6 */
 background: linear-gradient(to right, #004e92, #000428); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
-
-  color:white;
-
+color:white;
+overflow:hidden;
 }
 
 .rad-collapse{
@@ -329,16 +328,29 @@ box-shadow: inset 28px 28px 56px #cacaca,
 }
 
 
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+a:hover {
+    color:#00A0C6; 
+    cursor:pointer;
+}
+
+
 
 
 
   </style>
   
   <script>
-    var ActiveId=null;
+ var ActiveId=null;
 var LastActiveId=null;
-var searchTerm = ["###","###risk", "###action", "###dep","###issue"];
-var searchtermtag = ["tag","risk","action","dep","issue"];
+var ActiveNotesSection=null;
+var searchTerm = ["###","###action", "###risk","###assump","###dep","###issue","###actionCompleted"];
+var searchtermtag = ["tag","action","risk","assump","dep","issue","actionCompleted"];
+var searchTermCard= ["","actiontaglist","raidlist","raidlist","raidlist","raidlist","actionCompletedlist"]
 
 
 //Check edits onload
@@ -354,21 +366,19 @@ function loadnotes() {
 	today = dd+'/'+mm+'/'+yyyy;
 	dateElem.innerHTML += today;
 	checkEdits();
-    updatechart();
+    //updatechart();
     attachEventListener();
 }
 
 
 
 document.onclick = function (e) {
-	e = e || window.event;
-  //console.log(e);
+  	e = e || window.event;
     LastActiveId =ActiveId;
     for(var i=0;i<e.path.length;i++)
       {if(e.path[i].classList.contains("edit")){
         ActiveId = e.path[i].id;
-        if(LastActiveId===null){LastActiveId =ActiveId;}
-        //console.log("LastActiveId: "+LastActiveId+" ActiveId: "+ActiveId);
+        if(LastActiveId===null){LastActiveId =ActiveId;}        
       }}      
 }
 
@@ -380,127 +390,120 @@ document.onkeyup = function (e) {
   LastActiveId =ActiveId;  
   //identify top id of the box(edit class). This is passed to the saveEdits to save the innerHTML to that ID
   for(var i=0;i<e.path.length;i++)
-    {if(e.path[i].classList.contains("edit")){      
+    { //if(e.path[i].classList.contains("notesSection")){ActiveNotesSection=e.path[i].id;}//To be used later to create tags only on the card that is active 
+           
+      if(e.path[i].classList.contains("edit")){      
       ActiveId = e.path[i].id;
-      if(LastActiveId===null){LastActiveId =ActiveId;}     
-      tagIt(ActiveId);     
-      removeinlinestyle(ActiveId);
-      focusTriggeredTagsUpdate(ActiveId)
-      saveEdits(ActiveId);
-      updateSpanToPtags(ActiveId,e)
-    }
+      if(LastActiveId===null){LastActiveId =ActiveId;}
+      removeinlinestyle(ActiveId);//remove any inline style
+      updateSpanToPtags(ActiveId,e.keyCode); //
+      tagIt(ActiveId);//add the corresponding class to the items
+      focusTriggeredTagsUpdate(ActiveId);//take the items into the cards
+      saveEdits(ActiveId);//save the text into localStorage
+      
+      }
     }
 }
 
 
 
+//engulf text within <p> with <span>
+//Triggered when something is pasted
 function updateSpanToPtags(ActiveId,e){
-  console.log(e.keyCode);
-  if (e.keyCode === 13||e===null){    
+  //keyCode 13 is enter
+if (e===0 ||e=== 13){  //console.log(e);  
 var activeEditPanel=document.getElementById(ActiveId);  
 var testText = activeEditPanel.getElementsByClassName("Meeting-notes")[0];
 var pTags = testText.getElementsByTagName("p");
 for(i=0;i<pTags.length;i++){
 if(pTags[i].childNodes.length>0 && pTags[i].childNodes[0].nodeName!="SPAN"){
-pTags[i].innerHTML = "<span>"+pTags[i].innerHTML+"</span>";
-}}}}
-
-
-function attachEventListener(){
-  var x = document.getElementsByClassName("meetingnotes");
-for (var i = 0; i < x.length; i++) {
-//x[i].addEventListener("blur", focusTriggeredTagsUpdate, true);
-x[i].addEventListener("blur", function(){focusTriggeredTagsUpdate(LastActiveId);},true);
-  console.log("event handler added");
-x[i].addEventListener('paste',function(){updateSpanToPtags(ActiveId);},true);
-}
+pTags[i].innerHTML = "<span>"+pTags[i].innerHTML+"</span>";  
+}}}
+tagIt(ActiveId); // to add classname with the tag name
 }
 
-
-
-
-function updateTagItems(e,f,g){
-   var activeEditPanel=document.getElementById(e);
-   var span = activeEditPanel.getElementsByClassName(g)[0];
-  
-  //console.log(e);
-  //console.log(f);
-  //console.log(g);
-  //console.log(span.textContent==null);
-  
-  //console.log(span.textContent.indexOf(f,0));
-  //if(span.textContent.indexOf(f,0)>0){console.log("It is there");}
-  
-  //console.log("text present "+span.textContent.includes(f, 0));
-  //f=f.replace(g, " ");
-  /*
-  if(span.innerHTML!=null){
-    if(span.textContent.includes(f, 0)!==true){
-      var x = document.createElement("LI");
-      var t = document.createTextNode(f);
-      x.appendChild(t);
-      span.appendChild(x);
-      }
-  } */
-}
-  
-
-function focusTriggeredTagsUpdate(id){
-
-  
-  //console.log("focusTriggeredTagsUpdated | lastactive id is : "+LastActiveId);
-  var activeEditPanel=document.getElementById(id);  
-  activeEditPanel.getElementsByClassName("actiontaglist")[0].innerHTML="";
-  activeEditPanel.getElementsByClassName("risktaglist")[0].innerHTML="";
-  var span;
-  var actions = activeEditPanel.getElementsByClassName(searchtermtag[0]);
-  for(var i=0; i<actions.length;i++){
-  actions[i].classList.forEach(function(e){
+//Triggered when blur happens & on key up
+//Gets the items into the card
+function focusTriggeredTagsUpdate(id){  
+var activeEditPanel=document.getElementById(id);  
+activeEditPanel.getElementsByClassName("actiontaglist")[0].innerHTML="";
+activeEditPanel.getElementsByClassName("raidlist")[0].innerHTML="";
+var span;
+var actions = activeEditPanel.getElementsByClassName(searchtermtag[0]); //searchtermtag[0] is tag
+for(var i=0; i<actions.length;i++){
+ actions[i].classList.forEach(function(e){
       if(e!=searchtermtag[0]){
-                   span = activeEditPanel.getElementsByClassName(e)[0];
-                   //console.log(actions[i].textContent.replace(("###"+e),""));
-                  
-                    e=actions[i].textContent;
-                    e=e.replace(searchTerm[1],"");
-                    e=e.replace(searchTerm[2],"");
-                    e=e.replace(searchTerm[3],"");
-                    //console.log("e : "+e);
-                    
-                   var x = document.createElement("LI");
-                   var t = document.createTextNode(e);
-                   x.appendChild(t);
-                   span.appendChild(x);
-                  };
-});
-}   
+                   span = activeEditPanel.getElementsByClassName(searchTermCard[searchtermtag.indexOf(e)])[0];
+                     
+        
+                     e=actions[i].textContent;
+                     var re = new RegExp(`${searchTerm[1]}${String.raw`\b`}`, 'gi');        
+                     e=e.replace(re,"");
+                     e=e.replace(searchTerm[0]," | ");
+                 
+                    //IF THE TEXT IS ALREADY PRESENT SKIP
+                   if(span.textContent.indexOf(e) < 0){
+                     var x = document.createElement("LI");
+                     
+                     var t = document.createElement('a');
+                     t.textContent = e;
+                     t.href = "#"+actions[i].id;
+                     x.appendChild(t);
+                     
+                     
+                     span.appendChild(x);                   
+                      }
+                  }   
+                  });
+        }
 }
 
 
+//This is the main function to add/remove tags to span element with in the Project Card identified by the number in the ID
+//Tags are from array of tag text defined at the top searchTerm & searchtermtag
 function tagIt(e){
+  e="projectnotes"+e;
   var activeEditPanel=document.getElementById(e);
+    //activeEditPanel=activeEditPanel.getElementsByClassName();
   var span = activeEditPanel.getElementsByTagName("span")
   var ind = -1;
   var spanElement;
   var spanElementText;
   
+  var now = new Date();
+  var dd = now.getDate();if(dd<10) {dd='0'+dd;}
+  var mm = now.getMonth()+1;if(mm<10) {mm='0'+mm;}
+  var yyyy = now.getFullYear();
+  var hh = now.getHours();
+  var mn = now.getMinutes();
+  var ss = now.getSeconds();
+  var ms = now.getMilliseconds();    
+  now = yyyy.toString()+dd.toString()+mm.toString()+hh.toString()+mn.toString()+ss.toString()+ms.toString();
+    
   
-for (var i = 0; i < span.length; i++) {
+  
+  for (var i = 0; i < span.length; i++) {
     spanElement=span[i];
     spanElementText = spanElement.innerHTML.toLowerCase()
-    //console.log("tagIT function text is : "+spanElementText);
   
     for (var j = 0; j < searchTerm.length; j++) { 
-      //console.log("searchterm: "+searchTerm[j]);
-      ind = spanElementText.indexOf(searchTerm[j], ind+1);
-      //console.log("tagIt func, text found at(ind) :"+ind);
-      if (ind > 0) {spanElement.classList.add(searchtermtag[j]);
-                    //if(j>0){updateTagItems(e,spanElement.innerHTML,searchtermtag[j]);}
-                     }
-                else{spanElement.classList.remove(searchtermtag[j]);}
-      ind = -1;
-        }  
+      var re = new RegExp(`${searchTerm[j]}${String.raw`\b`}`, 'gi'); 
+     
+      if(j===0){re=RegExp(searchTerm[j], "gi");}//because the first tag ### will always be followed with other texts like ###action
+      
+      if(re.test(spanElementText)){
+        spanElement.classList.add(searchtermtag[j]);
+        if(spanElement.hasAttribute('id')){}else{ spanElement.id = searchtermtag[j]+now; console.log(spanElement.id);}
+        }else{spanElement.classList.remove(searchtermtag[j]);
+             }
+
+     }  
+  }
 }
-}
+
+
+
+
 
 
 
@@ -512,25 +515,17 @@ function removeinlinestyle(activeEditPanel){
     Array.prototype.forEach.call(target, function(element){
     element.removeAttribute('style');
     });    
-  });
-  
+  });  
 }
 
 
-
+//trigerred by on key up and active ID is sent
 function saveEdits(editElem) {
-  
-
-
-    //console.log("id is : "+editElem);
-	//get the editable element
   	//var editElem = document.activeElement.offsetParent.id;
-      //console.log(editElem);
   
   //get the edited element content
   var userVersion = document.getElementById(editElem).innerHTML;
-  //console.log(userVersion);
-  
+    
   if(userVersion.length<1){
   userVersion="<span>"+userVersion+ "</span>";
   }
@@ -544,21 +539,7 @@ function saveEdits(editElem) {
 
 
 
-function createnotes(){
-  
-
-/*
-      att = document.createAttribute("contenteditable"); 
-      att.value = "true";                          
-      newnotes.setAttributeNode(att);
-  
-  var span = document.createElement("p");
-  span.innerHTML = "<span>Title</span>"; 
-  span.innerHTML+= "<br>";
-  newnotes.appendChild(span);
-  */
-  
-  
+function createnotes(){  
 //get a unique id based on today and current time  
     var today = new Date();
 	var dd = today.getDate();
@@ -572,12 +553,10 @@ function createnotes(){
 	if(dd<10) {dd='0'+dd};
 	if(mm<10) {mm='0'+mm};
   	today = yyyy.toString()+dd.toString()+mm.toString()+hh.toString()+mn.toString()+ss.toString()+ms.toString();
-
-
   
- var newnotes = document.createElement("div");
+     var newnotes = document.createElement("div");
   
-  var att = document.createAttribute("class"); 
+      var att = document.createAttribute("class"); 
       att.value = "edit panel";                          
       newnotes.setAttributeNode(att);
       
@@ -590,26 +569,18 @@ function createnotes(){
       var todayraid="todayraid"+today;
       var todayraidlist="todayraidlist"+today;
       
-      
-  
       newnotes.innerHTML = 
-'<div class="panel-default"><div class ="panel-heading"><h3 class="panel-title"><span contenteditable="true">Project Title</span><span class="titlebtngroup"><button>A</button><button>R</button><button>A</button><button>I</button><button>D</button><button class="collapse-button" onclick="collapsepanelbody('+todaypanel+')">+</button></span></span></h3></div><div id='+todaypanel+'  class="panel-body cardcollapse"><div class="card timeline"><div class="container"><div class="card-heading"><h4><b>Timeline</b><button class="titlebtngroup" onclick="collapsepanelbody('+todaytimeline+')">V</button></h4></div><div   id='+todaytimeline+' class="cardcollapse"><p>To be updated</p></div></div></div><div class="card raid"><div class="container"><div class="card-heading"><h4><b>Raid</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayraid+')">V</button></h4></div><div  id='+todayraid+' class="cardcollapse" ><ol class="risktaglist risk dep " id='+todayraidlist+'></div></div></div><div class="card actionitems"><div class="container"><div class="card-heading"><h4><b>Action Items</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayActionItems+')">V</button></h4></div><div  id='+todayActionItems+' class="cardcollapse"><ol class="actiontaglist action" id='+todayActionItemslist+'></div></div></div><div class="card projectdetails"><div class="container"><div class="card-heading"><h4><b>Project Details</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayprojectdetails+')">V</button></h4></div><div  id='+todayprojectdetails+' class="cardcollapse" contenteditable="true"><p>Project Details to be updated</p></div></div></div><div class="card meetingnotes"><div class="container"><div class="card-heading"><h4><b>Meeting/Project Notes</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayprojectnotes+')">V</button></h4></div><div id='+todayprojectnotes+' class="cardcollapse"><button class="addNotesPlus" onclick="insertNotesSection()">+</button><div class="Meeting-notes" contenteditable="true"><div class="notesSection"><p><span>Meeting notes and project notes to be updated</span></p></div></div></div></div></div></div></div>'
-
-      ;
-  
-  att = document.createAttribute("id"); 
+'<div class="panel-default"><div class ="panel-heading"><h3 class="panel-title"><span contenteditable="true">Project Title</span><span class="titlebtngroup"><button>A</button><button>R</button><button>A</button><button>I</button><button>D</button><button class="collapse-button" onclick="collapsepanelbody('+todaypanel+')">+</button></span></span></h3></div><div id='+todaypanel+'  class="panel-body cardcollapse"><div class="card timeline"><div class="container"><div class="card-heading"><h4><b>Timeline</b><button class="titlebtngroup" onclick="collapsepanelbody('+todaytimeline+')">V</button></h4></div><div   id='+todaytimeline+' class="cardcollapse"><p>To be updated</p></div></div></div><div class="card raid"><div class="container"><div class="card-heading"><h4><b>Raid</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayraid+')">V</button></h4></div><div  id='+todayraid+' class="cardcollapse" ><ol class="raidlist" id='+todayraidlist+'></div></div></div><div class="card actionitems"><div class="container"><div class="card-heading"><h4><b>Action Items</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayActionItems+')">V</button></h4></div><div  id='+todayActionItems+' class="cardcollapse"><ol class="actiontaglist action" id='+todayActionItemslist+'><div style="display:none;"><ol class="actionCompletedlist"></ol></div></div></div></div><div class="card projectdetails"><div class="container"><div class="card-heading"><h4><b>Project Details</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayprojectdetails+')">V</button></h4></div><div  id='+todayprojectdetails+' class="cardcollapse" contenteditable="true"><p>Project Details to be updated</p></div></div></div><div class="card meetingnotes"><div class="container"><div class="card-heading"><h4><b>Meeting/Project Notes</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayprojectnotes+')">V</button></h4></div><div id='+todayprojectnotes+' class="cardcollapse"><button class="addNotesPlus" onclick="insertNotesSection()">+</button><div class="Meeting-notes"><div class="notesSection" contenteditable="true"><p><span>Meeting notes and project notes to be updated</span></p></div></div></div></div></div></div></div>'
+;
+      att = document.createAttribute("id"); 
       att.value = today;                          
       newnotes.setAttributeNode(att); 
-    
-    
-  
   
   //notes list in local storage
   if(localStorage.noteslist!=null) {
     var value = localStorage.getItem("noteslist");
     localStorage.setItem("noteslist", value+","+today);
-    }
-  else{ 
+    }else{ 
         localStorage.setItem("noteslist",today);
       }
    
@@ -623,35 +594,62 @@ function createnotes(){
   //var userVersion = this.innerHTML;
     localStorage.setItem(today, userVersion);
     attachEventListener();
-
+}
+//triggered at the end of createnotes()
+function attachEventListener(){
+  var x = document.getElementsByClassName("meetingnotes");
+for (var i = 0; i < x.length; i++) {
+//x[i].addEventListener("blur", focusTriggeredTagsUpdate, true);
+x[i].addEventListener("blur", function(){focusTriggeredTagsUpdate(LastActiveId);},true);
+  
+x[i].addEventListener('paste',function(){updateSpanToPtags(ActiveId,e);},true);//doesn't seem to be working
+//x[i].addEventListener('paste',function(){console.log(ActiveId);},true);
+}
 }
 
 
 
+
 function insertNotesSection(){
-  //console.log(ActiveId);
   var notesSection = document.getElementById(ActiveId);
   notesSection= notesSection.getElementsByClassName("Meeting-notes")[0];
-  //console.log(notesSection);
   
   var insertNotesSection = document.createElement("div");
   
   var att = document.createAttribute("class"); 
       att.value = "notesSection";                          
       insertNotesSection.setAttributeNode(att);
+  
+  att = document.createAttribute("contenteditable"); 
+        att.value = "true";                          
+        insertNotesSection.setAttributeNode(att)
+        
+    var now = new Date();
+	var dd = now.getDate();
+	var mm = now.getMonth()+1;
+	var yyyy = now.getFullYear();
+    var hh = now.getHours();
+    var mn = now.getMinutes();
+    var ss = now.getSeconds();
+    var ms = now.getMilliseconds();    
+	if(dd<10) {dd='0'+dd};
+	if(mm<10) {mm='0'+mm};
+  	now = yyyy.toString()+dd.toString()+mm.toString()+hh.toString()+mn.toString()+ss.toString()+ms.toString();
+    att = document.createAttribute("id"); 
+    att.value = "notesSection"+now;                          
+    insertNotesSection.setAttributeNode(att); 
+  
+  
    insertNotesSection.innerHTML =
   '<p><span>Meeting notes and project notes to be updated</span></p>'
   ;
-  
-  
-  notesSection.insertBefore(insertNotesSection, notesSection.childNodes[0]);
-  
+  notesSection.insertBefore(insertNotesSection, notesSection.childNodes[0]);  
 }
 
 
 
  
-
+//To Extract text from the local storage and updated into the page. This is triggered when the page loads
 function checkEdits(){
   if(localStorage.noteslist!=null) {
       var localnoteslist = localStorage.getItem("noteslist");
@@ -698,146 +696,16 @@ function checkEdits(){
 
 
 function collapsepanelbody(id){
-  //console.log(document.querySelector("[id='"+id+"']"));
-  //var thisid = document.querySelector("[id='"+id+"']");
-    //console.log(id);
- 
  if(id.classList.contains('rad-collapse')){
     id.classList.remove('rad-collapse');
   }else{id.classList.add('rad-collapse');}  
-  focusTriggeredTagsUpdate(ActiveId);
+  focusTriggeredTagsUpdate(ActiveId); // when this is triggered when the page loads the activeID does get captured.
 }
 
 
 
-function removehighlight(){
-  
-  /*
-  //to remove all inline style
-  var styleremove=document.querySelectorAll(".Meeting-notes");
-  Array.prototype.forEach.call(styleremove, function(element){
-    var target = element.querySelectorAll('*');
-    Array.prototype.forEach.call(target, function(element){
-    element.removeAttribute('style');
-    });    
-  });
-  */
-  
-var highlighted = document.getElementsByTagName("span");
-var ind = -1;
-var searchTerm = "###";
-  
-  //console.log(highlighted.length);
-  for (var i = 0; i < highlighted.length; i++){
-    var element = highlighted[i];
-    //console.log("ind value : "+ind);
-    ind = element.innerHTML.indexOf(searchTerm, ind+1);
-    
-    //console.log("this text: "+element.innerHTML);
-    //console.log("### found at : "+ind); 
-    if (ind > 0) {element.classList.add("tag");
-    }else{element.classList.remove("tag");}
-    ind = -1;
-} 
-}
 
 
-  
-function highlight(){
-var edit = document.getElementsByClassName("edit")
-for (var i = 0; i < edit.length; i++) 
-{
-var bodyText = edit[i].innerHTML; 
-var highlightStartTag;
-var highlightEndTag;
-var newText = "";
-var ind = -1;
-var searchTerm = "###";
-var lcSearchTerm = searchTerm.toLowerCase();
-var lcBodyText = bodyText.toLowerCase();
-var divstart;
-var divend;
-    
- while (bodyText.length > 0) {
-   console.log("bodyText initial: "+bodyText);
-        //console.log("ind before search: "+ind);
-        //console.log("lcBodyText: "+lcBodyText);
-    ind = lcBodyText.indexOf(lcSearchTerm, ind+1);
-     //console.log("after search ind: "+ind);
-    
-   if (ind < 0) {
-      newText += bodyText;
-      bodyText = "";
-      } else {     
-        //console.log("newText: "+newText);
-        //console.log("bodyText: "+bodyText);
-        //console.log("ind: "+ind);
-        //console.log("previous <div: "+bodyText.lastIndexOf("is", ind));
-        divstart = bodyText.lastIndexOf(">", ind);
-        divend =bodyText.indexOf("<", ind);
-        
-        //console.log("divstart :"+divstart);
-        //console.log("divend  : "+divend);        
-        //console.log("First part : "+bodyText.substring(0,divstart+1));
-        //console.log("Second part : "+bodyText.substring(divstart+1,divend));
-        //console.log("finding font : "+bodyText.substring(divend+2,divend+6));             
-        //console.log("find tag : "+bodyText.substring(divstart-4,divstart-1));
-        
-        
-        if(bodyText.substring(divstart-4,divstart-1)=='tag'){
-          newText += bodyText.substring(0, divend);
-          bodyText = bodyText.substr(divend);
-          //console.log("tag is present");
-          //console.log("newText : "+newText);
-          //console.log("bodyText : "+bodyText);
-          lcBodyText = bodyText.toLowerCase();
-          ind = -1;
-        }else{          
-          //console.log("tag is not present"); 
-          //element.classList.add("mystyle");
-        
-                  if(divstart<0){
-                    //console.log("start of the line");
-                    divstart=0;
-                    highlightStartTag="<span class='tag' >";
-                    highlightEndTag ="</span>";
-                    if(divend<0){divend=bodyText.length;}
-                    } else{
-                      divstart=divstart+1;
-                      highlightStartTag="<span class='tag' >";
-                      highlightEndTag ="</span>";
-                      if(bodyText.substring(divend+2,divend+6)=='span'){
-                        highlightStartTag = "tag";
-                        highlightEndTag ="";
-                        divstart=divstart-2;
-                        //console.log("finding font : "+bodyText.substring(divend+2,divend+6));
-                        }
-                  }
-          
-            
-                  // skip anything inside an HTML tag
-                  if (bodyText.lastIndexOf(">", ind) >= bodyText.lastIndexOf("<", ind)) {
-              
-                      // skip anything inside a <script> block
-                      if (lcBodyText.lastIndexOf("/script>", ind) >= lcBodyText.lastIndexOf("<script", ind)) {
-                      //console.log("First text : "+bodyText.substring(0, divstart));
-                      //console.log("Second text : "+bodyText.substring(divstart, divend));
-                  
-                      newText += bodyText.substring(0, divstart) + highlightStartTag + bodyText.substring(divstart, divend) + highlightEndTag;
-                      bodyText = bodyText.substr(divend);
-                      lcBodyText = bodyText.toLowerCase();
-                      ind = -1;
-                      }
-                 }
-        }       
-    }
-  }
-edit[i].innerHTML = newText;
-var notesid = document.getElementsByClassName("edit")[i].id;
-localStorage.setItem(notesid, newText);
-  // noprotect
-}
-}
 
 
 
@@ -846,43 +714,29 @@ localStorage.setItem(notesid, newText);
 
 function liststorage(){
   for (var i = 0; i < localStorage.length; i++) {
-
   // set iteration key name
   var key = localStorage.key(i);
-
   // use key name to retrieve the corresponding value
   var value = localStorage.getItem(key);
-
   // console.log the iteration key and value
   console.log('Key: ' + key + ', Value: ' + value);
-  }
-  
+  }  
 }
 
 
 function Removelocalnotes(){
   for (var i = 0; i < localStorage.length; i++) {
-
   // set iteration key name
   var key = localStorage.key(i);
-
   // use key name to retrieve the corresponding value
-  var value = localStorage.getItem(key);
-  
-  localStorage.removeItem(key);
-    
+  var value = localStorage.getItem(key);  
+  localStorage.removeItem(key);    
   // console.log the iteration key and value
   console.log('Key: ' + key + ', Value: ' + value + 'to be removed')
-  }
-  
+  }  
 }
 
-/*
-function updatepadding() {
-  document.getElementsByClassName("paddedline").style.padding = "10px 10px 20px 30px";
-}
 
-*/
 
 function changeElement() {
   var el = document.getElementsByClassName("paddedline");
@@ -1099,141 +953,15 @@ document.getElementById("paddedline").appendChild(newtimelabel);
 
 
 function hidechartdata(){
-var dataforchart = document.getElementById("dataforchart");
-  
+var dataforchart = document.getElementById("dataforchart");  
   if (dataforchart.style.display == 'none') {
     dataforchart.style.display = 'flex';
   } else {
     dataforchart.style.display = 'none';
-
   }
 }
 
-
-function formatNotes(){
-  
-  
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*
-Need to add to the body in the HTML ---> onclick="theFunction(event)"
-function theFunction(e){ 
-  console.log(e);
-    console.log(e.target.className);
-  console.log(e.target.innerHTML);
-
-}
-
-
-
-
-
-
-
-
-
-document.getElementById("20210110111253810").addEventListener("click", function() {
-  console.log("yes");document.getElementById("20210110111253810").style.backgroundColor = "red";
-});
-
-document.body.attachEvent()("click", function () {
-    //console.dir(this);
-    //note evt.target can be a nested element, not the body element, resulting in misfires
-    console.log(event.target);
-    //alert(evet);
-});
-
-
-
-
-document.addEventListener("click", function(){document.getElementById("205109143843627").style.backgroundColor = "yellow";});
-
-
-document.getElementById("todaypanel20210110111253810").addEventListener("click", function(){
-    document.getElementById("todaypanel20210110111253810").style.backgroundColor = "yellow";
-});
-
-
-document.getElementById("thistest").addEventListener('click',function () {
-	this.style.backgroundColor = '#cc0000'; console.log("worked")
-},false)
-
-  
-
-
-
-document.body.addEventListener('click',function(evt) {
-      console.log("Yes");
-        var evt = window.event || evt; //window.event for IE
-        if (!evt.target) {
-            evt.target = evt.srcElement; //extend target property for IE
-        } 
-
-        var parent = evt.target.OffsetparentElement.parentElement;
-
-        while (parent.tagName != 'DIV') {
-            parent = parent.parentNode;
-        }
-        console.log(parent.id);
-    })
-
-//document.body.addEventListener('click',function() { console.log("Yes");});
-
-document.body.addEventListener("click", function(event) {
-  console.log(" body capturing");
-}, true);
-
-
-
-function test(){
-  updateTagItems("20210810141631454");
-}
-
-
-
-var element1 = document.querySelectorAll('.meetingnotes')
-
-body.addEventListener('click', event => {
-  if (event.target !== element1) {
-    console.log("clicked"+event.target.id);
-  }
-});
-
-
-
-
-function checkEdits() {
-	//find out if the user has previously saved edits
-	if(localStorage.userEdits!=null) {
-	document.getElementById("edit").innerHTML += localStorage.userEdits;
-	}
-};
-
-
-*/
-
-
-
-
-
-
-
-
-
-
-    </script>
+</script>
 </head>
 <body onload=loadnotes()>
 <div id="toprow" class="flex-top">
