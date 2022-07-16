@@ -1,0 +1,2129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>ProNotes</title>
+  <style>
+    var ActiveId=null;
+var LastActiveId=null;
+var ActiveNotesSection=null;
+var dateregex = /(\d{2}|\d{1})([\-/ \.])([0-9]{2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)([\-/ \.])\d{4}|(\d{2}|\d{1})([\-/ \.])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/gi;
+var searchTerm = ["###","###action", "###risk","###assump","###dep","###issue","###actionCompleted",dateregex];
+var searchtermtag = ["tag","action","risk","assump","dep","issue","actionCompleted","dates"];
+var searchTermCard= ["","actiontaglist","raidlist","raidlist","raidlist","raidlist","actionCompletedlist","dates"];
+
+
+//Check edits onload
+//window.addEventListener('load', loadnotes);
+function loadnotes() {
+	var dateElem = document.getElementById("date");
+	var today = new Date();
+	var dd = today.getDate();
+	var mm = today.getMonth()+1;
+	var yyyy = today.getFullYear();
+	if(dd<10) {dd='0'+dd} 
+	if(mm<10) {mm='0'+mm} 
+	today = dd+'/'+mm+'/'+yyyy;
+	dateElem.innerHTML += today;
+	checkEdits();
+    //updatechart();
+    attachEventListener();
+}
+
+
+
+document.onclick = function (e) {
+  	e = e || window.event;
+    LastActiveId =ActiveId;
+    for(var i=0;i<e.path.length;i++)
+      {if(e.path[i].classList.contains("edit")){
+        ActiveId = e.path[i].id;
+        if(LastActiveId===null){LastActiveId =ActiveId;}        
+      }}      
+}
+
+
+
+document.onkeyup = function(e) {
+	e = e || window.event;
+  //console.log(e);
+  LastActiveId =ActiveId;  
+  //identify top id of the box(edit class). This is passed to the saveEdits to save the innerHTML to that ID
+  for(var i=0;i<e.path.length;i++)
+    { //if(e.path[i].classList.contains("notesSection")){ActiveNotesSection=e.path[i].id;}//To be used later to create tags only on the card that is active 
+           
+      if(e.path[i].classList.contains("edit")){      
+      ActiveId = e.path[i].id;
+      if(LastActiveId===null){LastActiveId =ActiveId;}
+      removeinlinestyle(ActiveId);//remove any inline style
+      updateSpanToPtags(ActiveId,e.keyCode); //
+      tagIt(ActiveId);//add the corresponding class to the items
+      focusTriggeredTagsUpdate(ActiveId);//take the items into the cards
+      saveEdits(ActiveId);//save the text into localStorage
+      //updatechart(ActiveId);
+      }
+    }
+}
+
+
+
+
+//Function to insert text at the cursor position through Voice to Text
+
+document.addEventListener("keydown", function(event) {
+  
+      if (!event.repeat && event.ctrlKey && event.shiftKey && (event.key === 'x' || event.key === 'X'))
+      { //console.log(event.key);
+        insertTextAtCaret("Testing");
+       }
+});
+
+function insertTextAtCaret(text) {
+    var sel, range;
+    if (window.getSelection) {
+        sel = window.getSelection();
+      
+        if (sel.getRangeAt && sel.rangeCount) {
+            range = sel.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode( document.createTextNode(text) );
+            range.collapse(false);
+          
+          //sel = window.getSelection();
+          //sel.removeAllRanges();
+          //console.log(sel.getRangeAt(0));
+          //console.log(sel);
+          //sel.addRange(range);   
+          
+        }
+    } else if (document.selection && document.selection.createRange) {
+        document.selection.createRange().text = text;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+//engulf text within <p> with <span>
+//Triggered when something is pasted
+function updateSpanToPtags(ActiveId,e){
+  //keyCode 13 is enter
+if (e===0 ||e=== 13){  //console.log(e);  
+var activeEditPanel=document.getElementById(ActiveId);  
+var testText = activeEditPanel.getElementsByClassName("Meeting-notes")[0];
+var pTags = testText.getElementsByTagName("p");
+for(i=0;i<pTags.length;i++){
+if(pTags[i].childNodes.length>0 && pTags[i].childNodes[0].nodeName!="SPAN"){
+pTags[i].innerHTML = "<span>"+pTags[i].innerHTML+"</span>";  
+}}}
+tagIt(ActiveId); // to add classname with the tag name
+}
+
+//Triggered when blur happens & on key up
+//Gets the items into the card
+function focusTriggeredTagsUpdate(id){  
+var activeEditPanel=document.getElementById(id);  
+activeEditPanel.getElementsByClassName("actiontaglist")[0].innerHTML="";
+activeEditPanel.getElementsByClassName("raidlist")[0].innerHTML="";
+var span;
+var actions = activeEditPanel.getElementsByClassName(searchtermtag[0]); //searchtermtag[0] is tag
+for(var i=0; i<actions.length;i++){
+ actions[i].classList.forEach(function(e){
+      if(e!=searchtermtag[0]){
+                   span = activeEditPanel.getElementsByClassName(searchTermCard[searchtermtag.indexOf(e)])[0];
+                     
+        
+                     e=actions[i].textContent;
+                     var re = new RegExp(`${searchTerm[1]}${String.raw`\b`}`, 'gi');        
+                     e=e.replace(re,"");
+                     e=e.replace(searchTerm[0]," | ");
+                 
+                    //IF THE TEXT IS ALREADY PRESENT SKIP
+                   if(span.textContent.indexOf(e) < 0){
+                     var x = document.createElement("LI");
+                     
+                     var t = document.createElement('a');
+                     t.textContent = e;
+                     t.href = "#"+actions[i].id;
+                     x.appendChild(t);
+                     
+                     
+                     span.appendChild(x);                   
+                      }
+                  }   
+                  });
+        }
+}
+
+
+//This is the main function to add/remove tags to span element with in the Project Card identified by the number in the ID
+//Tags are from array of tag text defined at the top searchTerm & searchtermtag
+function tagIt(e){
+  e="projectnotes"+e;
+  var activeEditPanel=document.getElementById(e);
+    //activeEditPanel=activeEditPanel.getElementsByClassName();
+  var span = activeEditPanel.getElementsByTagName("span")
+  var ind = -1;
+  var spanElement;
+  var spanElementText;
+  var found=[];
+  
+  var now = new Date();
+  var dd = now.getDate();if(dd<10) {dd='0'+dd;}
+  var mm = now.getMonth()+1;if(mm<10) {mm='0'+mm;}
+  var yyyy = now.getFullYear();
+  var hh = now.getHours();
+  var mn = now.getMinutes();
+  var ss = now.getSeconds();
+  var ms = now.getMilliseconds();    
+  now = yyyy.toString()+dd.toString()+mm.toString()+hh.toString()+mn.toString()+ss.toString()+ms.toString();
+  
+  //to capture dates
+  var taskstartdate = [];
+  var taskenddate = [];
+  var task = [];
+  var k =0; //to help capture the dates and tasks in an array
+  var thisyear=new Date().getFullYear();
+  
+  
+
+  for (var i = 0; i < span.length; i++) {
+    spanElement=span[i];
+    spanElementText = spanElement.innerHTML.toLowerCase()
+  
+    for (var j = 0; j < searchTerm.length; j++) { //searchTerm is an array with the list of searchtext declared at the top
+       
+      //Capture Dates and tasks
+      if(j===7){
+              found=spanElementText.match(dateregex);
+              //console.log("found dateregex"+spanElementText.match(dateregex));
+              if(found!=null){
+                  var strtemp = spanElementText;
+                  //console.log("dateregex : "+found2);
+                  //taskwholeline[k]=str;
+                  if(found[0]!=null){if(found[0].length<7){taskstartdate[k]=new Date(found[0]+" "+thisyear);}else{taskstartdate[k]=new Date(found[0]);}}
+                  if(found[1]!=null){if(found[1].length<7){taskenddate[k]=new Date(found[1]+" "+thisyear);}else{taskenddate[k]=new Date(found[1]);}}
+                  strtemp = strtemp.replace(found[0],"");
+                  strtemp = strtemp.replace(found[1],"");
+                  //task[k]=strtemp.trim();
+                  task[k] = titleCase(strtemp.trim());
+
+                  //console.log("Startdate Capture: "+taskstartdate[j]);
+                  //console.log("Enddate Capture: "+taskenddate[j]);
+                  //console.log("Task Name Capture: "+task[j]);
+                  k++;
+                 }
+             }else{
+              var re = new RegExp(`${searchTerm[j]}${String.raw`\b`}`, 'gi');
+              if(j===0){re=RegExp(searchTerm[j], "gi");}//because the first tag ### will always be followed with other texts like ###action
+      
+              if(re.test(spanElementText)){//console.log(spanElementText+" "+searchTerm[j]);
+                spanElement.classList.add(searchtermtag[j]);
+                if(spanElement.hasAttribute('id')){}else{ spanElement.id = searchtermtag[j]+now; console.log(spanElement.id);}
+               }else{spanElement.classList.remove(searchtermtag[j]);}
+          }
+     }//console.log(taskstartdate); console.log(taskenddate);  console.log(task); 
+  }; chartIt(taskstartdate,taskenddate,task);
+}
+
+
+
+
+function chartIt(taskstartdate,taskenddate,task){
+  //console.clear();
+  //console.log(taskstartdate); console.log(taskenddate);  console.log(task); 
+  
+var eleremove = document.getElementById("Timelabel")
+while (eleremove.lastChild) {eleremove.lastChild.remove();}
+eleremove = document.getElementById("paddedline")
+while (eleremove.lastChild) {eleremove.lastChild.remove();}
+  
+//var edit = document.getElementById("dates"); 
+//e="projectnotes"+e;
+//var edit=document.getElementById(e);
+  
+
+var startcolumnleft =2;
+var endcolumnleft = 97;
+var numberofweeks = 0;
+var months = ["Jan", "Feb", "Mar","Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+
+
+//FIND THE START AND FINISH OF THE CHART
+  
+//convert the date string into date format
+var startdateformat = new Date(Math.min.apply(null,taskstartdate));
+var enddateformat = new Date(Math.max.apply(null, taskenddate));
+if(taskenddate.length<1){enddateformat = new Date(Math.max.apply(null, taskstartdate));}
+//console.log("startdateformat : "+startdateformat);
+//console.log("enddateformat : "+enddateformat);
+//console.log("taskenddate : " + taskenddate);
+  
+//find the start and end of the week
+startdateformat = new Date(startdateformat.setDate(startdateformat.getDate() - startdateformat.getDay()));
+enddateformat = new Date(enddateformat.setDate(enddateformat.getDate() - enddateformat.getDay()+6));
+//console.log("chart start: "+startdateformat);
+//console.log("chart end: "+enddateformat);
+
+//find the number of weeks and the width of a week and a day
+var UTCa = Date.UTC(startdateformat.getFullYear(), startdateformat.getMonth(), startdateformat.getDate());
+var UTCb = Date.UTC(enddateformat.getFullYear(), enddateformat.getMonth(), enddateformat.getDate());
+var today = Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); 
+var todayUTCaDiff = (((Math.floor((today - UTCa)/(1000 * 60 * 60 * 24)))).toFixed(0));  //diff from startdate and today's date
+  //console.log("UTCa : "+ UTCa);
+  //console.log("UTCb : "+ UTCb);
+  //console.log("UTCb-UTCa : "+ (UTCb - UTCa));
+   //console.log("today-UTCa : "+ todayUTCaDiff);
+  
+numberofweeks = (((Math.floor((UTCb - UTCa)/(1000 * 60 * 60 * 24)))/7).toFixed(0));
+ //console.log("numberofweeks : "+ numberofweeks); 
+var colwidth = (endcolumnleft-startcolumnleft)/(+numberofweeks+1);
+var onedaywidth = colwidth/7; 
+//console.log("NumberOfWeeks: "+(+numberofweeks+1));
+//console.log("colwidth: "+(+colwidth));  
+//console.log("onedaywidth: "+onedaywidth);
+
+  
+  
+  
+  
+
+//UPDATE THE WEEK COLUMNS
+for(var i=0; i<=(+numberofweeks+2); i++)
+{
+
+//create today vertical line if it is within the date range of the chart  
+if(i==(+numberofweeks+2) && ((onedaywidth*todayUTCaDiff)+startcolumnleft)<97){
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "vl todayline";                          
+newtimelabel.setAttributeNode(att);
+att = document.createAttribute("style"); 
+att.value = "left:"+((onedaywidth*todayUTCaDiff)+startcolumnleft)+"%";                          
+newtimelabel.setAttributeNode(att);
+//console.log("i"+i);
+//console.log("startdate"+startdateformat);
+document.getElementById("Timelabel").appendChild(newtimelabel);
+  }
+  
+  //Create the vertical weekly lines
+  else{  
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "vl";                          
+newtimelabel.setAttributeNode(att);
+att = document.createAttribute("style"); 
+att.value = "left:"+((colwidth*i)+startcolumnleft)+"%";                          
+newtimelabel.setAttributeNode(att);
+//console.log("i"+i);
+//console.log("startdate"+startdateformat);
+
+  document.getElementById("Timelabel").appendChild(newtimelabel);
+  
+
+    //create the datelabel class
+  
+  newtimelabel=document.createElement("div");
+  att = document.createAttribute("class"); 
+  att.value = "datelabel";  
+  newtimelabel.setAttributeNode(att);
+  
+  att = document.createAttribute("style"); 
+  att.value = "left:"+((colwidth*i)+startcolumnleft-1.5)+"%";                          
+  newtimelabel.setAttributeNode(att);
+  
+
+//newtimelabel.innerHTML=startdateformat.getDate() + "-" + months[startdateformat.getMonth()] + "-" + startdateformat.getFullYear();
+newtimelabel.innerHTML=startdateformat.getDate() + "-" + months[startdateformat.getMonth()];
+var nextweek = new Date(startdateformat.setDate(startdateformat.getDate()+7))
+
+document.getElementById("Timelabel").appendChild(newtimelabel);   
+  }
+}
+
+ 
+  
+//CREATE PADDED LINE(GRAPH LINES)
+  
+for(var i=0; i<taskstartdate.length; i++){
+
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "paddedline";      
+newtimelabel.setAttributeNode(att);
+//newtimelabel.innerHTML=str;
+newtimelabel.innerHTML="";
+  
+ var UTCb=""; 
+  var UTCc="";
+  var thistaskstart="";
+  var thistaskend="";
+
+//console.log("Task "+[i]+" startdate "+taskstartdate[i]);
+//console.log("Task "+[i]+" taskenddate "+taskenddate[i]);
+UTCb = Date.UTC(taskstartdate[i].getFullYear(), taskstartdate[i].getMonth(), taskstartdate[i].getDate());
+thistaskstart = Math.floor((UTCb - UTCa)/(1000 * 60 * 60 * 24).toFixed(0))*onedaywidth;
+  
+  
+  if(taskenddate[i]!=null){
+UTCc = Date.UTC(taskenddate[i].getFullYear(), taskenddate[i].getMonth(), taskenddate[i].getDate());    
+    thistaskend = Math.floor((UTCc - UTCa)/(1000 * 60 * 60 * 24).toFixed(0))*onedaywidth;
+    if(thistaskend>thistaskstart){thistaskend = thistaskend-thistaskstart;}
+    else{thistaskend=onedaywidth;
+        }
+  }else{
+    thistaskend=onedaywidth/2;
+  }
+
+thistaskstart = thistaskstart+startcolumnleft;
+
+
+//console.log("This Task "+[i]+" start position "+thistaskstart);
+//console.log("This Task "+[i]+" End position "+thistaskend);
+  
+  
+//console.log("This Task "+[i]+" updated start position "+thistaskstart);
+//console.log("This Task "+[i]+" updated End position "+thistaskend);
+  
+att = document.createAttribute("style"); 
+att.value = "left:"+(+thistaskstart)+"%; padding-right: "+(thistaskend)+"%; background-color: #40bAA4";
+newtimelabel.setAttributeNode(att);
+document.getElementById("paddedline").appendChild(newtimelabel);
+  
+  
+  
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "labels";      
+newtimelabel.setAttributeNode(att);
+  
+att = document.createAttribute("style"); 
+att.value = "left:"+(+thistaskstart+thistaskend+1)+"%;";
+newtimelabel.setAttributeNode(att);
+
+newtimelabel.innerHTML=task[i];
+document.getElementById("paddedline").appendChild(newtimelabel);
+  
+  
+   
+var newtimelabel = document.createElement("br");
+document.getElementById("paddedline").appendChild(newtimelabel);
+} 
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function removeinlinestyle(activeEditPanel){
+  var activeEditPanel=document.getElementById(activeEditPanel);
+  var styleremove=activeEditPanel.querySelectorAll(".Meeting-notes");
+  Array.prototype.forEach.call(styleremove, function(element){
+    var target = element.querySelectorAll('*');
+    Array.prototype.forEach.call(target, function(element){
+    element.removeAttribute('style');
+    });    
+  });  
+}
+
+
+//trigerred by on key up and active ID is sent
+function saveEdits(editElem) {
+  	//var editElem = document.activeElement.offsetParent.id;
+  
+  //get the edited element content
+  var userVersion = document.getElementById(editElem).innerHTML;
+    
+  if(userVersion.length<1){
+  userVersion="<span>"+userVersion+ "</span>";
+  }
+//console.log(document.activeElement.tagName);
+	//save the content to local storage
+	//localStorage.editElem = userVersion;
+  localStorage.setItem(editElem, userVersion);
+}
+
+
+
+
+
+function createnotes(){  
+//get a unique id based on today and current time  
+    var today = new Date();
+	var dd = today.getDate();
+	var mm = today.getMonth()+1;
+	var yyyy = today.getFullYear();
+    var hh = today.getHours();
+    var mn = today.getMinutes();
+    var ss = today.getSeconds();
+    var ms = today.getMilliseconds();
+    
+	if(dd<10) {dd='0'+dd};
+	if(mm<10) {mm='0'+mm};
+  	today = yyyy.toString()+dd.toString()+mm.toString()+hh.toString()+mn.toString()+ss.toString()+ms.toString();
+  
+     var newnotes = document.createElement("div");
+  
+      var att = document.createAttribute("class"); 
+      att.value = "edit panel";                          
+      newnotes.setAttributeNode(att);
+      
+      var todaytimeline="timeline"+today;
+      var todayprojectnotes = "projectnotes"+today;
+      var todayprojectdetails = "projectdetails"+today;
+      var todaypanel = "todaypanel"+today;
+      var todayActionItems = "todayActionItems"+today;
+      var todayActionItemslist = "todayActionItemslist"+today;
+      var todayraid="todayraid"+today;
+      var todayraidlist="todayraidlist"+today;
+      
+      newnotes.innerHTML = 
+'<div class="panel-default"><div class ="panel-heading"><h3 class="panel-title"><span contenteditable="true">Project Title</span><span class="titlebtngroup"><button>A</button><button>R</button><button>A</button><button>I</button><button>D</button><button class="collapse-button" onclick="collapsepanelbody('+todaypanel+')">+</button></span></span></h3></div><div id='+todaypanel+'  class="panel-body cardcollapse"><div class="card timeline"><div class="container"><div class="card-heading"><h4><b>Timeline</b><button class="titlebtngroup" onclick="collapsepanelbody('+todaytimeline+')">V</button></h4></div><div   id='+todaytimeline+' class="cardcollapse"><p>To be updated</p></div></div></div><div class="card raid"><div class="container"><div class="card-heading"><h4><b>Raid</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayraid+')">V</button></h4></div><div  id='+todayraid+' class="cardcollapse" ><ol class="raidlist" id='+todayraidlist+'></div></div></div><div class="card actionitems"><div class="container"><div class="card-heading"><h4><b>Action Items</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayActionItems+')">V</button></h4></div><div  id='+todayActionItems+' class="cardcollapse"><ol class="actiontaglist action" id='+todayActionItemslist+'><div style="display:none;"><ol class="actionCompletedlist"></ol></div></div></div></div><div class="card projectdetails"><div class="container"><div class="card-heading"><h4><b>Project Details</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayprojectdetails+')">V</button></h4></div><div  id='+todayprojectdetails+' class="cardcollapse" contenteditable="true"><p>Project Details to be updated</p></div></div></div><div class="card meetingnotes"><div class="container"><div class="card-heading"><h4><b>Meeting/Project Notes</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayprojectnotes+')">V</button></h4></div><div id='+todayprojectnotes+' class="cardcollapse"><button class="addNotesPlus" onclick="insertNotesSection()">+</button><div class="Meeting-notes"><div class="notesSection" contenteditable="true"><p><span>Meeting notes and project notes to be updated</span></p></div></div></div></div></div></div></div>'
+;
+      att = document.createAttribute("id"); 
+      att.value = today;                          
+      newnotes.setAttributeNode(att); 
+  
+  //notes list in local storage
+  if(localStorage.noteslist!=null) {
+    var value = localStorage.getItem("noteslist");
+    localStorage.setItem("noteslist", value+","+today);
+    }else{ 
+        localStorage.setItem("noteslist",today);
+      }
+   
+  //document.body.appendChild(newnotes);
+  var notesarea = document.getElementById("notesarea");
+   notesarea.insertBefore(newnotes, notesarea.childNodes[0]);
+   
+ //body.insertBefore(newnotes,body.childNodes[0])
+ 
+  var userVersion = document.getElementById(today).innerHTML;
+  //var userVersion = this.innerHTML;
+    localStorage.setItem(today, userVersion);
+    attachEventListener();
+}
+//triggered at the end of createnotes()
+function attachEventListener(){
+  var x = document.getElementsByClassName("meetingnotes");
+for (var i = 0; i < x.length; i++) {
+//x[i].addEventListener("blur", focusTriggeredTagsUpdate, true);
+x[i].addEventListener("blur", function(){focusTriggeredTagsUpdate(LastActiveId);},true);
+  
+x[i].addEventListener('paste',function(){updateSpanToPtags(ActiveId,e);},true);//doesn't seem to be working
+//x[i].addEventListener('paste',function(){console.log(ActiveId);},true);
+}
+}
+
+
+
+
+function insertNotesSection(){
+  var notesSection = document.getElementById(ActiveId);
+  notesSection= notesSection.getElementsByClassName("Meeting-notes")[0];
+  
+  var insertNotesSection = document.createElement("div");
+  
+  var att = document.createAttribute("class"); 
+      att.value = "notesSection";                          
+      insertNotesSection.setAttributeNode(att);
+  
+  att = document.createAttribute("contenteditable"); 
+        att.value = "true";                          
+        insertNotesSection.setAttributeNode(att)
+        
+    var now = new Date();
+	var dd = now.getDate();
+	var mm = now.getMonth()+1;
+	var yyyy = now.getFullYear();
+    var hh = now.getHours();
+    var mn = now.getMinutes();
+    var ss = now.getSeconds();
+    var ms = now.getMilliseconds();    
+	if(dd<10) {dd='0'+dd};
+	if(mm<10) {mm='0'+mm};
+  	now = yyyy.toString()+dd.toString()+mm.toString()+hh.toString()+mn.toString()+ss.toString()+ms.toString();
+    att = document.createAttribute("id"); 
+    att.value = "notesSection"+now;                          
+    insertNotesSection.setAttributeNode(att); 
+  
+  
+   insertNotesSection.innerHTML =
+  '<p><span>Meeting notes and project notes to be updated</span></p>'
+  ;
+  notesSection.insertBefore(insertNotesSection, notesSection.childNodes[0]);  
+}
+
+
+
+ 
+//To Extract text from the local storage and updated into the page. This is triggered when the page loads
+function checkEdits(){
+  if(localStorage.noteslist!=null) {
+      var localnoteslist = localStorage.getItem("noteslist");
+      var noteslistarray = localnoteslist.split(",");
+      noteslistarray.sort();
+      noteslistarray.reverse();
+      for (var i = 0; i < noteslistarray.length; i++) {
+        var localnotesid = noteslistarray[i];
+        var localnotesvalue = localStorage.getItem(localnotesid);
+        console.log(localnotesid);
+        var newnotes = document.createElement("div");
+      
+        var att = document.createAttribute("class"); 
+        att.value = "edit panel";                          
+        newnotes.setAttributeNode(att);
+
+        /*att = document.createAttribute("contenteditable"); 
+        att.value = "true";                          
+        newnotes.setAttributeNode(att);	*/
+  
+        att = document.createAttribute("id"); 
+        att.value = localnotesid;                          
+        newnotes.setAttributeNode(att);
+    
+        newnotes.innerHTML = localnotesvalue;
+        notesarea.appendChild(newnotes);  
+        
+        //focusTriggeredTagsUpdate(localnotesid);
+       
+      }
+  }
+  document.getElementById("dates").innerHTML=localStorage.getItem("dates");
+  document.getElementById("action-item").innerHTML=localStorage.getItem("action-item");
+  document.getElementById("raid-item").innerHTML=localStorage.getItem("raid-item");
+  
+  //Collapse all panels
+  
+   //var list = document.getElementsByClassName("panel-body");
+   var list = document.querySelectorAll(".panel-body");
+    for (var i = 0; i < list.length; i++) {
+   list[i].classList.add('rad-collapse');
+    }
+}
+
+
+function collapsepanelbody(id){
+ if(id.classList.contains('rad-collapse')){
+    id.classList.remove('rad-collapse');
+  }else{id.classList.add('rad-collapse');}  
+  focusTriggeredTagsUpdate(ActiveId); // when this is triggered when the page loads the activeID does get captured.
+}
+
+
+
+
+
+
+
+
+
+
+
+function liststorage(){
+  for (var i = 0; i < localStorage.length; i++) {
+  // set iteration key name
+  var key = localStorage.key(i);
+  // use key name to retrieve the corresponding value
+  var value = localStorage.getItem(key);
+  // console.log the iteration key and value
+  console.log('Key: ' + key + ', Value: ' + value);
+  }  
+}
+
+
+function Removelocalnotes(){
+  for (var i = 0; i < localStorage.length; i++) {
+  // set iteration key name
+  var key = localStorage.key(i);
+  // use key name to retrieve the corresponding value
+  var value = localStorage.getItem(key);  
+  localStorage.removeItem(key);    
+  // console.log the iteration key and value
+  console.log('Key: ' + key + ', Value: ' + value + 'to be removed')
+  }  
+}
+
+
+
+function changeElement() {
+  var el = document.getElementsByClassName("paddedline");
+  el.style.color = "red";
+  el.style.fontSize = "15px";
+  el.style.backgroundColor = "#FFFFFF";
+}
+
+
+function updatechart(e){
+  console.clear();
+var eleremove = document.getElementById("Timelabel")
+while (eleremove.lastChild) {eleremove.lastChild.remove();}
+eleremove = document.getElementById("paddedline")
+while (eleremove.lastChild) {eleremove.lastChild.remove();}
+  
+//var edit = document.getElementById("dates"); 
+e="projectnotes"+e;
+var edit=document.getElementById(e);
+  
+var divtext = edit.getElementsByTagName("p")
+var taskstartdate = [];
+var taskenddate = [];
+var task = [];
+var taskwholeline = [];
+var found2=[];
+var strtemp;
+var dateregex = /(\d{2}|\d{1})([\-/ \.])([0-9]{2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)([\-/ \.])\d{4}|(\d{2}|\d{1})([\-/ \.])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/gi;
+var j=0;
+var thisyear=new Date().getFullYear();
+var startcolumnleft =2;
+var endcolumnleft = 97;
+var numberofweeks = 0;
+var months = ["Jan", "Feb", "Mar","Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+
+//SPILIT EACH LINE AND EXTRACT THE START DATE, END DATE AND THE TASK NAME INTO AN ARRAY
+for(i=0;i<divtext.length;i++){
+str=divtext[i].innerHTML; //console.log("Text Capture: "+str);
+found2=str.match(dateregex);
+if(found2!=null){//console.log("dateregex : "+found2);
+taskwholeline[j]=str;
+if(found2[0]!=null){if(found2[0].length<7){taskstartdate[j]=new Date(found2[0]+" "+thisyear);}else{taskstartdate[j]=new Date(found2[0]);}}
+if(found2[1]!=null){if(found2[1].length<7){taskenddate[j]=new Date(found2[1]+" "+thisyear);}else{taskenddate[j]=new Date(found2[1]);}}
+strtemp = str.replace(found2[0],"");
+strtemp = strtemp.replace(found2[1],"");
+task[j]=strtemp.trim();
+//console.log("Startdate Capture: "+taskstartdate[j]);
+//console.log("Enddate Capture: "+taskenddate[j]);
+//console.log("Task Name Capture: "+task[j]);
+j++;
+} 
+}
+
+
+//FIND THE START AND FINISH OF THE CHART
+  
+//convert the date string into date format
+var startdateformat = new Date(Math.min.apply(null,taskstartdate));
+var enddateformat = new Date(Math.max.apply(null, taskenddate));
+if(taskenddate.length<1){enddateformat = new Date(Math.max.apply(null, taskstartdate));}
+//console.log("startdateformat : "+startdateformat);
+//console.log("enddateformat : "+enddateformat);
+//console.log("taskenddate : " + taskenddate);
+  
+//find the start and end of the week
+startdateformat = new Date(startdateformat.setDate(startdateformat.getDate() - startdateformat.getDay()));
+enddateformat = new Date(enddateformat.setDate(enddateformat.getDate() - enddateformat.getDay()+6));
+//console.log("chart start: "+startdateformat);
+//console.log("chart end: "+enddateformat);
+
+//find the number of weeks and the width of a week and a day
+var UTCa = Date.UTC(startdateformat.getFullYear(), startdateformat.getMonth(), startdateformat.getDate());
+var UTCb = Date.UTC(enddateformat.getFullYear(), enddateformat.getMonth(), enddateformat.getDate());
+var today = Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); 
+var todayUTCaDiff = (((Math.floor((today - UTCa)/(1000 * 60 * 60 * 24)))).toFixed(0));  //diff from startdate and today's date
+  //console.log("UTCa : "+ UTCa);
+  //console.log("UTCb : "+ UTCb);
+  //console.log("UTCb-UTCa : "+ (UTCb - UTCa));
+   //console.log("today-UTCa : "+ todayUTCaDiff);
+  
+numberofweeks = (((Math.floor((UTCb - UTCa)/(1000 * 60 * 60 * 24)))/7).toFixed(0));
+ //console.log("numberofweeks : "+ numberofweeks); 
+var colwidth = (endcolumnleft-startcolumnleft)/(+numberofweeks+1);
+var onedaywidth = colwidth/7; 
+//console.log("NumberOfWeeks: "+(+numberofweeks+1));
+//console.log("colwidth: "+(+colwidth));  
+//console.log("onedaywidth: "+onedaywidth);
+
+  
+  
+  
+  
+
+//UPDATE THE WEEK COLUMNS
+for(var i=0; i<=(+numberofweeks+2); i++)
+{
+
+//create today vertical line if it is within the date range of the chart  
+if(i==(+numberofweeks+2) && ((onedaywidth*todayUTCaDiff)+startcolumnleft)<97){
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "vl todayline";                          
+newtimelabel.setAttributeNode(att);
+att = document.createAttribute("style"); 
+att.value = "left:"+((onedaywidth*todayUTCaDiff)+startcolumnleft)+"%";                          
+newtimelabel.setAttributeNode(att);
+//console.log("i"+i);
+//console.log("startdate"+startdateformat);
+document.getElementById("Timelabel").appendChild(newtimelabel);
+  }
+  
+  //Create the vertical weekly lines
+  else{  
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "vl";                          
+newtimelabel.setAttributeNode(att);
+att = document.createAttribute("style"); 
+att.value = "left:"+((colwidth*i)+startcolumnleft)+"%";                          
+newtimelabel.setAttributeNode(att);
+//console.log("i"+i);
+//console.log("startdate"+startdateformat);
+
+  document.getElementById("Timelabel").appendChild(newtimelabel);
+  
+
+    //create the datelabel class
+  
+  newtimelabel=document.createElement("div");
+  att = document.createAttribute("class"); 
+  att.value = "datelabel";  
+  newtimelabel.setAttributeNode(att);
+  
+  att = document.createAttribute("style"); 
+  att.value = "left:"+((colwidth*i)+startcolumnleft-1.5)+"%";                          
+  newtimelabel.setAttributeNode(att);
+  
+
+//newtimelabel.innerHTML=startdateformat.getDate() + "-" + months[startdateformat.getMonth()] + "-" + startdateformat.getFullYear();
+newtimelabel.innerHTML=startdateformat.getDate() + "-" + months[startdateformat.getMonth()];
+var nextweek = new Date(startdateformat.setDate(startdateformat.getDate()+7))
+
+document.getElementById("Timelabel").appendChild(newtimelabel);   
+  }
+}
+
+ 
+  
+//CREATE PADDED LINE(GRAPH LINES)
+  
+for(var i=0; i<taskstartdate.length; i++){
+
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "paddedline";      
+newtimelabel.setAttributeNode(att);
+newtimelabel.innerHTML=str;
+  
+ var UTCb=""; 
+  var UTCc="";
+  var thistaskstart="";
+  var thistaskend="";
+
+//console.log("Task "+[i]+" startdate "+taskstartdate[i]);
+//console.log("Task "+[i]+" taskenddate "+taskenddate[i]);
+UTCb = Date.UTC(taskstartdate[i].getFullYear(), taskstartdate[i].getMonth(), taskstartdate[i].getDate());
+thistaskstart = Math.floor((UTCb - UTCa)/(1000 * 60 * 60 * 24).toFixed(0))*onedaywidth;
+  
+  
+  if(taskenddate[i]!=null){
+UTCc = Date.UTC(taskenddate[i].getFullYear(), taskenddate[i].getMonth(), taskenddate[i].getDate());    
+    thistaskend = Math.floor((UTCc - UTCa)/(1000 * 60 * 60 * 24).toFixed(0))*onedaywidth;
+    if(thistaskend>thistaskstart){thistaskend = thistaskend-thistaskstart;}
+    else{thistaskend=onedaywidth;
+        }
+  }else{
+    thistaskend=onedaywidth/2;
+  }
+
+thistaskstart = thistaskstart+startcolumnleft;
+
+
+//console.log("This Task "+[i]+" start position "+thistaskstart);
+//console.log("This Task "+[i]+" End position "+thistaskend);
+  
+  
+//console.log("This Task "+[i]+" updated start position "+thistaskstart);
+//console.log("This Task "+[i]+" updated End position "+thistaskend);
+  
+att = document.createAttribute("style"); 
+att.value = "left:"+(+thistaskstart)+"%; padding-right: "+(thistaskend)+"%; background-color: #40bAA4";
+newtimelabel.setAttributeNode(att);
+document.getElementById("paddedline").appendChild(newtimelabel);
+  
+  
+  
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "labels";      
+newtimelabel.setAttributeNode(att);
+  
+att = document.createAttribute("style"); 
+att.value = "left:"+(+thistaskstart+thistaskend+1)+"%;";
+newtimelabel.setAttributeNode(att);
+
+newtimelabel.innerHTML=task[i];
+document.getElementById("paddedline").appendChild(newtimelabel);
+  
+  
+   
+var newtimelabel = document.createElement("br");
+document.getElementById("paddedline").appendChild(newtimelabel);
+} 
+  
+}
+
+
+function hidechartdata(){
+var dataforchart = document.getElementById("dataforchart");  
+  if (dataforchart.style.display == 'none') {
+    dataforchart.style.display = 'flex';
+  } else {
+    dataforchart.style.display = 'none';
+  }
+}
+
+function titleCase(str) {
+  return str.toLowerCase().split(' ').map(function(word) {
+    return word.replace(word[0], word[0].toUpperCase());
+  }).join(' ');
+}
+
+/*
+
+//This adds only the tag class if  ### is present this might be a duplicate
+function removehighlight(){
+  
+ 
+  //to remove all inline style
+  var styleremove=document.querySelectorAll(".Meeting-notes");
+  Array.prototype.forEach.call(styleremove, function(element){
+    var target = element.querySelectorAll('*');
+    Array.prototype.forEach.call(target, function(element){
+    element.removeAttribute('style');
+    });    
+  });
+ 
+  
+var highlighted = document.getElementsByTagName("span");
+var ind = -1;
+var searchTerm = "###";
+  
+  //console.log(highlighted.length);
+  for (var i = 0; i < highlighted.length; i++){
+    var element = highlighted[i];
+    //console.log("ind value : "+ind);
+    ind = element.innerHTML.indexOf(searchTerm, ind+1);
+    
+    //console.log("this text: "+element.innerHTML);
+    //console.log("### found at : "+ind); 
+    if (ind > 0) {element.classList.add("tag");
+    }else{element.classList.remove("tag");}
+    ind = -1;
+} 
+}
+
+
+
+
+                     var t = document.createTextNode(e); // Need to create hyperlink here
+                     x.appendChild(t);
+                     x.dataset.id = actions[i].id; 
+                     //x.href="#"+actions[i].id; 
+                     x.setAttribute("href", actions[i].id); console.log(x);
+     
+     
+ind = spanElementText.indexOf(searchTerm[j], ind+1);
+if(ind > 0){spanElement.classList.add(searchtermtag[j]);
+                    }else{spanElement.classList.remove(searchtermtag[j]);}
+ind = -1;
+      
+      
+
+function updatepadding() {
+  document.getElementsByClassName("paddedline").style.padding = "10px 10px 20px 30px";
+}
+
+
+
+
+
+
+
+
+//I don't think this is used in this new version 
+function highlight(){
+var edit = document.getElementsByClassName("edit")
+for (var i = 0; i < edit.length; i++) 
+{
+var bodyText = edit[i].innerHTML; 
+var highlightStartTag;
+var highlightEndTag;
+var newText = "";
+var ind = -1;
+var searchTerm = "###";
+var lcSearchTerm = searchTerm.toLowerCase();
+var lcBodyText = bodyText.toLowerCase();
+var divstart;
+var divend;
+    
+ while (bodyText.length > 0) {
+   console.log("bodyText initial: "+bodyText);
+        //console.log("ind before search: "+ind);
+        //console.log("lcBodyText: "+lcBodyText);
+    ind = lcBodyText.indexOf(lcSearchTerm, ind+1);
+     //console.log("after search ind: "+ind);
+    
+   if (ind < 0) {
+      newText += bodyText;
+      bodyText = "";
+      } else {     
+        //console.log("newText: "+newText);
+        //console.log("bodyText: "+bodyText);
+        //console.log("ind: "+ind);
+        //console.log("previous <div: "+bodyText.lastIndexOf("is", ind));
+        divstart = bodyText.lastIndexOf(">", ind);
+        divend =bodyText.indexOf("<", ind);
+        
+        //console.log("divstart :"+divstart);
+        //console.log("divend  : "+divend);        
+        //console.log("First part : "+bodyText.substring(0,divstart+1));
+        //console.log("Second part : "+bodyText.substring(divstart+1,divend));
+        //console.log("finding font : "+bodyText.substring(divend+2,divend+6));             
+        //console.log("find tag : "+bodyText.substring(divstart-4,divstart-1));
+        
+        
+        if(bodyText.substring(divstart-4,divstart-1)=='tag'){
+          newText += bodyText.substring(0, divend);
+          bodyText = bodyText.substr(divend);
+          //console.log("tag is present");
+          //console.log("newText : "+newText);
+          //console.log("bodyText : "+bodyText);
+          lcBodyText = bodyText.toLowerCase();
+          ind = -1;
+        }else{          
+          //console.log("tag is not present"); 
+          //element.classList.add("mystyle");
+        
+                  if(divstart<0){
+                    //console.log("start of the line");
+                    divstart=0;
+                    highlightStartTag="<span class='tag' >";
+                    highlightEndTag ="</span>";
+                    if(divend<0){divend=bodyText.length;}
+                    } else{
+                      divstart=divstart+1;
+                      highlightStartTag="<span class='tag' >";
+                      highlightEndTag ="</span>";
+                      if(bodyText.substring(divend+2,divend+6)=='span'){
+                        highlightStartTag = "tag";
+                        highlightEndTag ="";
+                        divstart=divstart-2;
+                        //console.log("finding font : "+bodyText.substring(divend+2,divend+6));
+                        }
+                  }
+          
+            
+                  // skip anything inside an HTML tag
+                  if (bodyText.lastIndexOf(">", ind) >= bodyText.lastIndexOf("<", ind)) {
+              
+                      // skip anything inside a <script> block
+                      if (lcBodyText.lastIndexOf("/script>", ind) >= lcBodyText.lastIndexOf("<script", ind)) {
+                      //console.log("First text : "+bodyText.substring(0, divstart));
+                      //console.log("Second text : "+bodyText.substring(divstart, divend));
+                  
+                      newText += bodyText.substring(0, divstart) + highlightStartTag + bodyText.substring(divstart, divend) + highlightEndTag;
+                      bodyText = bodyText.substr(divend);
+                      lcBodyText = bodyText.toLowerCase();
+                      ind = -1;
+                      }
+                 }
+        }       
+    }
+  }
+edit[i].innerHTML = newText;
+var notesid = document.getElementsByClassName("edit")[i].id;
+localStorage.setItem(notesid, newText);
+  // noprotect
+}
+}
+
+
+
+
+
+
+Need to add to the body in the HTML ---> onclick="theFunction(event)"
+function theFunction(e){ 
+  console.log(e);
+    console.log(e.target.className);
+  console.log(e.target.innerHTML);
+
+}
+
+
+
+
+
+
+
+
+
+document.getElementById("20210110111253810").addEventListener("click", function() {
+  console.log("yes");document.getElementById("20210110111253810").style.backgroundColor = "red";
+});
+
+document.body.attachEvent()("click", function () {
+    //console.dir(this);
+    //note evt.target can be a nested element, not the body element, resulting in misfires
+    console.log(event.target);
+    //alert(evet);
+});
+
+
+
+
+document.addEventListener("click", function(){document.getElementById("205109143843627").style.backgroundColor = "yellow";});
+
+
+document.getElementById("todaypanel20210110111253810").addEventListener("click", function(){
+    document.getElementById("todaypanel20210110111253810").style.backgroundColor = "yellow";
+});
+
+
+document.getElementById("thistest").addEventListener('click',function () {
+	this.style.backgroundColor = '#cc0000'; console.log("worked")
+},false)
+
+  
+
+
+
+document.body.addEventListener('click',function(evt) {
+      console.log("Yes");
+        var evt = window.event || evt; //window.event for IE
+        if (!evt.target) {
+            evt.target = evt.srcElement; //extend target property for IE
+        } 
+
+        var parent = evt.target.OffsetparentElement.parentElement;
+
+        while (parent.tagName != 'DIV') {
+            parent = parent.parentNode;
+        }
+        console.log(parent.id);
+    })
+
+//document.body.addEventListener('click',function() { console.log("Yes");});
+
+document.body.addEventListener("click", function(event) {
+  console.log(" body capturing");
+}, true);
+
+
+
+function test(){
+  updateTagItems("20210810141631454");
+}
+
+
+
+var element1 = document.querySelectorAll('.meetingnotes')
+
+body.addEventListener('click', event => {
+  if (event.target !== element1) {
+    console.log("clicked"+event.target.id);
+  }
+});
+
+
+
+
+function checkEdits() {
+	//find out if the user has previously saved edits
+	if(localStorage.userEdits!=null) {
+	document.getElementById("edit").innerHTML += localStorage.userEdits;
+	}
+};
+
+
+*/
+
+
+
+
+
+
+
+
+
+    </style>
+  
+  <script>
+    var ActiveId=null;
+var LastActiveId=null;
+var ActiveNotesSection=null;
+var dateregex = /(\d{2}|\d{1})([\-/ \.])([0-9]{2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)([\-/ \.])\d{4}|(\d{2}|\d{1})([\-/ \.])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/gi;
+var searchTerm = ["###","###action", "###risk","###assump","###dep","###issue","###actionCompleted",dateregex];
+var searchtermtag = ["tag","action","risk","assump","dep","issue","actionCompleted","dates"];
+var searchTermCard= ["","actiontaglist","raidlist","raidlist","raidlist","raidlist","actionCompletedlist","dates"];
+
+
+//Check edits onload
+//window.addEventListener('load', loadnotes);
+function loadnotes() {
+	var dateElem = document.getElementById("date");
+	var today = new Date();
+	var dd = today.getDate();
+	var mm = today.getMonth()+1;
+	var yyyy = today.getFullYear();
+	if(dd<10) {dd='0'+dd} 
+	if(mm<10) {mm='0'+mm} 
+	today = dd+'/'+mm+'/'+yyyy;
+	dateElem.innerHTML += today;
+	checkEdits();
+    //updatechart();
+    attachEventListener();
+}
+
+
+
+document.onclick = function (e) {
+  	e = e || window.event;
+    LastActiveId =ActiveId;
+    for(var i=0;i<e.path.length;i++)
+      {if(e.path[i].classList.contains("edit")){
+        ActiveId = e.path[i].id;
+        if(LastActiveId===null){LastActiveId =ActiveId;}        
+      }}      
+}
+
+
+
+document.onkeyup = function(e) {
+	e = e || window.event;
+  //console.log(e);
+  LastActiveId =ActiveId;  
+  //identify top id of the box(edit class). This is passed to the saveEdits to save the innerHTML to that ID
+  for(var i=0;i<e.path.length;i++)
+    { //if(e.path[i].classList.contains("notesSection")){ActiveNotesSection=e.path[i].id;}//To be used later to create tags only on the card that is active 
+           
+      if(e.path[i].classList.contains("edit")){      
+      ActiveId = e.path[i].id;
+      if(LastActiveId===null){LastActiveId =ActiveId;}
+      removeinlinestyle(ActiveId);//remove any inline style
+      updateSpanToPtags(ActiveId,e.keyCode); //
+      tagIt(ActiveId);//add the corresponding class to the items
+      focusTriggeredTagsUpdate(ActiveId);//take the items into the cards
+      saveEdits(ActiveId);//save the text into localStorage
+      //updatechart(ActiveId);
+      }
+    }
+}
+
+
+
+
+//Function to insert text at the cursor position through Voice to Text
+
+document.addEventListener("keydown", function(event) {
+  
+      if (!event.repeat && event.ctrlKey && event.shiftKey && (event.key === 'x' || event.key === 'X'))
+      { //console.log(event.key);
+        insertTextAtCaret("Testing");
+       }
+});
+
+function insertTextAtCaret(text) {
+    var sel, range;
+    if (window.getSelection) {
+        sel = window.getSelection();
+      
+        if (sel.getRangeAt && sel.rangeCount) {
+            range = sel.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode( document.createTextNode(text) );
+            range.collapse(false);
+          
+          //sel = window.getSelection();
+          //sel.removeAllRanges();
+          //console.log(sel.getRangeAt(0));
+          //console.log(sel);
+          //sel.addRange(range);   
+          
+        }
+    } else if (document.selection && document.selection.createRange) {
+        document.selection.createRange().text = text;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+//engulf text within <p> with <span>
+//Triggered when something is pasted
+function updateSpanToPtags(ActiveId,e){
+  //keyCode 13 is enter
+if (e===0 ||e=== 13){  //console.log(e);  
+var activeEditPanel=document.getElementById(ActiveId);  
+var testText = activeEditPanel.getElementsByClassName("Meeting-notes")[0];
+var pTags = testText.getElementsByTagName("p");
+for(i=0;i<pTags.length;i++){
+if(pTags[i].childNodes.length>0 && pTags[i].childNodes[0].nodeName!="SPAN"){
+pTags[i].innerHTML = "<span>"+pTags[i].innerHTML+"</span>";  
+}}}
+tagIt(ActiveId); // to add classname with the tag name
+}
+
+//Triggered when blur happens & on key up
+//Gets the items into the card
+function focusTriggeredTagsUpdate(id){  
+var activeEditPanel=document.getElementById(id);  
+activeEditPanel.getElementsByClassName("actiontaglist")[0].innerHTML="";
+activeEditPanel.getElementsByClassName("raidlist")[0].innerHTML="";
+var span;
+var actions = activeEditPanel.getElementsByClassName(searchtermtag[0]); //searchtermtag[0] is tag
+for(var i=0; i<actions.length;i++){
+ actions[i].classList.forEach(function(e){
+      if(e!=searchtermtag[0]){
+                   span = activeEditPanel.getElementsByClassName(searchTermCard[searchtermtag.indexOf(e)])[0];
+                     
+        
+                     e=actions[i].textContent;
+                     var re = new RegExp(`${searchTerm[1]}${String.raw`\b`}`, 'gi');        
+                     e=e.replace(re,"");
+                     e=e.replace(searchTerm[0]," | ");
+                 
+                    //IF THE TEXT IS ALREADY PRESENT SKIP
+                   if(span.textContent.indexOf(e) < 0){
+                     var x = document.createElement("LI");
+                     
+                     var t = document.createElement('a');
+                     t.textContent = e;
+                     t.href = "#"+actions[i].id;
+                     x.appendChild(t);
+                     
+                     
+                     span.appendChild(x);                   
+                      }
+                  }   
+                  });
+        }
+}
+
+
+//This is the main function to add/remove tags to span element with in the Project Card identified by the number in the ID
+//Tags are from array of tag text defined at the top searchTerm & searchtermtag
+function tagIt(e){
+  e="projectnotes"+e;
+  var activeEditPanel=document.getElementById(e);
+    //activeEditPanel=activeEditPanel.getElementsByClassName();
+  var span = activeEditPanel.getElementsByTagName("span")
+  var ind = -1;
+  var spanElement;
+  var spanElementText;
+  var found=[];
+  
+  var now = new Date();
+  var dd = now.getDate();if(dd<10) {dd='0'+dd;}
+  var mm = now.getMonth()+1;if(mm<10) {mm='0'+mm;}
+  var yyyy = now.getFullYear();
+  var hh = now.getHours();
+  var mn = now.getMinutes();
+  var ss = now.getSeconds();
+  var ms = now.getMilliseconds();    
+  now = yyyy.toString()+dd.toString()+mm.toString()+hh.toString()+mn.toString()+ss.toString()+ms.toString();
+  
+  //to capture dates
+  var taskstartdate = [];
+  var taskenddate = [];
+  var task = [];
+  var k =0; //to help capture the dates and tasks in an array
+  var thisyear=new Date().getFullYear();
+  
+  
+
+  for (var i = 0; i < span.length; i++) {
+    spanElement=span[i];
+    spanElementText = spanElement.innerHTML.toLowerCase()
+  
+    for (var j = 0; j < searchTerm.length; j++) { //searchTerm is an array with the list of searchtext declared at the top
+       
+      //Capture Dates and tasks
+      if(j===7){
+              found=spanElementText.match(dateregex);
+              //console.log("found dateregex"+spanElementText.match(dateregex));
+              if(found!=null){
+                  var strtemp = spanElementText;
+                  //console.log("dateregex : "+found2);
+                  //taskwholeline[k]=str;
+                  if(found[0]!=null){if(found[0].length<7){taskstartdate[k]=new Date(found[0]+" "+thisyear);}else{taskstartdate[k]=new Date(found[0]);}}
+                  if(found[1]!=null){if(found[1].length<7){taskenddate[k]=new Date(found[1]+" "+thisyear);}else{taskenddate[k]=new Date(found[1]);}}
+                  strtemp = strtemp.replace(found[0],"");
+                  strtemp = strtemp.replace(found[1],"");
+                  //task[k]=strtemp.trim();
+                  task[k] = titleCase(strtemp.trim());
+
+                  //console.log("Startdate Capture: "+taskstartdate[j]);
+                  //console.log("Enddate Capture: "+taskenddate[j]);
+                  //console.log("Task Name Capture: "+task[j]);
+                  k++;
+                 }
+             }else{
+              var re = new RegExp(`${searchTerm[j]}${String.raw`\b`}`, 'gi');
+              if(j===0){re=RegExp(searchTerm[j], "gi");}//because the first tag ### will always be followed with other texts like ###action
+      
+              if(re.test(spanElementText)){//console.log(spanElementText+" "+searchTerm[j]);
+                spanElement.classList.add(searchtermtag[j]);
+                if(spanElement.hasAttribute('id')){}else{ spanElement.id = searchtermtag[j]+now; console.log(spanElement.id);}
+               }else{spanElement.classList.remove(searchtermtag[j]);}
+          }
+     }//console.log(taskstartdate); console.log(taskenddate);  console.log(task); 
+  }; chartIt(taskstartdate,taskenddate,task);
+}
+
+
+
+
+function chartIt(taskstartdate,taskenddate,task){
+  //console.clear();
+  //console.log(taskstartdate); console.log(taskenddate);  console.log(task); 
+  
+var eleremove = document.getElementById("Timelabel")
+while (eleremove.lastChild) {eleremove.lastChild.remove();}
+eleremove = document.getElementById("paddedline")
+while (eleremove.lastChild) {eleremove.lastChild.remove();}
+  
+//var edit = document.getElementById("dates"); 
+//e="projectnotes"+e;
+//var edit=document.getElementById(e);
+  
+
+var startcolumnleft =2;
+var endcolumnleft = 97;
+var numberofweeks = 0;
+var months = ["Jan", "Feb", "Mar","Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+
+
+//FIND THE START AND FINISH OF THE CHART
+  
+//convert the date string into date format
+var startdateformat = new Date(Math.min.apply(null,taskstartdate));
+var enddateformat = new Date(Math.max.apply(null, taskenddate));
+if(taskenddate.length<1){enddateformat = new Date(Math.max.apply(null, taskstartdate));}
+//console.log("startdateformat : "+startdateformat);
+//console.log("enddateformat : "+enddateformat);
+//console.log("taskenddate : " + taskenddate);
+  
+//find the start and end of the week
+startdateformat = new Date(startdateformat.setDate(startdateformat.getDate() - startdateformat.getDay()));
+enddateformat = new Date(enddateformat.setDate(enddateformat.getDate() - enddateformat.getDay()+6));
+//console.log("chart start: "+startdateformat);
+//console.log("chart end: "+enddateformat);
+
+//find the number of weeks and the width of a week and a day
+var UTCa = Date.UTC(startdateformat.getFullYear(), startdateformat.getMonth(), startdateformat.getDate());
+var UTCb = Date.UTC(enddateformat.getFullYear(), enddateformat.getMonth(), enddateformat.getDate());
+var today = Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); 
+var todayUTCaDiff = (((Math.floor((today - UTCa)/(1000 * 60 * 60 * 24)))).toFixed(0));  //diff from startdate and today's date
+  //console.log("UTCa : "+ UTCa);
+  //console.log("UTCb : "+ UTCb);
+  //console.log("UTCb-UTCa : "+ (UTCb - UTCa));
+   //console.log("today-UTCa : "+ todayUTCaDiff);
+  
+numberofweeks = (((Math.floor((UTCb - UTCa)/(1000 * 60 * 60 * 24)))/7).toFixed(0));
+ //console.log("numberofweeks : "+ numberofweeks); 
+var colwidth = (endcolumnleft-startcolumnleft)/(+numberofweeks+1);
+var onedaywidth = colwidth/7; 
+//console.log("NumberOfWeeks: "+(+numberofweeks+1));
+//console.log("colwidth: "+(+colwidth));  
+//console.log("onedaywidth: "+onedaywidth);
+
+  
+  
+  
+  
+
+//UPDATE THE WEEK COLUMNS
+for(var i=0; i<=(+numberofweeks+2); i++)
+{
+
+//create today vertical line if it is within the date range of the chart  
+if(i==(+numberofweeks+2) && ((onedaywidth*todayUTCaDiff)+startcolumnleft)<97){
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "vl todayline";                          
+newtimelabel.setAttributeNode(att);
+att = document.createAttribute("style"); 
+att.value = "left:"+((onedaywidth*todayUTCaDiff)+startcolumnleft)+"%";                          
+newtimelabel.setAttributeNode(att);
+//console.log("i"+i);
+//console.log("startdate"+startdateformat);
+document.getElementById("Timelabel").appendChild(newtimelabel);
+  }
+  
+  //Create the vertical weekly lines
+  else{  
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "vl";                          
+newtimelabel.setAttributeNode(att);
+att = document.createAttribute("style"); 
+att.value = "left:"+((colwidth*i)+startcolumnleft)+"%";                          
+newtimelabel.setAttributeNode(att);
+//console.log("i"+i);
+//console.log("startdate"+startdateformat);
+
+  document.getElementById("Timelabel").appendChild(newtimelabel);
+  
+
+    //create the datelabel class
+  
+  newtimelabel=document.createElement("div");
+  att = document.createAttribute("class"); 
+  att.value = "datelabel";  
+  newtimelabel.setAttributeNode(att);
+  
+  att = document.createAttribute("style"); 
+  att.value = "left:"+((colwidth*i)+startcolumnleft-1.5)+"%";                          
+  newtimelabel.setAttributeNode(att);
+  
+
+//newtimelabel.innerHTML=startdateformat.getDate() + "-" + months[startdateformat.getMonth()] + "-" + startdateformat.getFullYear();
+newtimelabel.innerHTML=startdateformat.getDate() + "-" + months[startdateformat.getMonth()];
+var nextweek = new Date(startdateformat.setDate(startdateformat.getDate()+7))
+
+document.getElementById("Timelabel").appendChild(newtimelabel);   
+  }
+}
+
+ 
+  
+//CREATE PADDED LINE(GRAPH LINES)
+  
+for(var i=0; i<taskstartdate.length; i++){
+
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "paddedline";      
+newtimelabel.setAttributeNode(att);
+//newtimelabel.innerHTML=str;
+newtimelabel.innerHTML="";
+  
+ var UTCb=""; 
+  var UTCc="";
+  var thistaskstart="";
+  var thistaskend="";
+
+//console.log("Task "+[i]+" startdate "+taskstartdate[i]);
+//console.log("Task "+[i]+" taskenddate "+taskenddate[i]);
+UTCb = Date.UTC(taskstartdate[i].getFullYear(), taskstartdate[i].getMonth(), taskstartdate[i].getDate());
+thistaskstart = Math.floor((UTCb - UTCa)/(1000 * 60 * 60 * 24).toFixed(0))*onedaywidth;
+  
+  
+  if(taskenddate[i]!=null){
+UTCc = Date.UTC(taskenddate[i].getFullYear(), taskenddate[i].getMonth(), taskenddate[i].getDate());    
+    thistaskend = Math.floor((UTCc - UTCa)/(1000 * 60 * 60 * 24).toFixed(0))*onedaywidth;
+    if(thistaskend>thistaskstart){thistaskend = thistaskend-thistaskstart;}
+    else{thistaskend=onedaywidth;
+        }
+  }else{
+    thistaskend=onedaywidth/2;
+  }
+
+thistaskstart = thistaskstart+startcolumnleft;
+
+
+//console.log("This Task "+[i]+" start position "+thistaskstart);
+//console.log("This Task "+[i]+" End position "+thistaskend);
+  
+  
+//console.log("This Task "+[i]+" updated start position "+thistaskstart);
+//console.log("This Task "+[i]+" updated End position "+thistaskend);
+  
+att = document.createAttribute("style"); 
+att.value = "left:"+(+thistaskstart)+"%; padding-right: "+(thistaskend)+"%; background-color: #40bAA4";
+newtimelabel.setAttributeNode(att);
+document.getElementById("paddedline").appendChild(newtimelabel);
+  
+  
+  
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "labels";      
+newtimelabel.setAttributeNode(att);
+  
+att = document.createAttribute("style"); 
+att.value = "left:"+(+thistaskstart+thistaskend+1)+"%;";
+newtimelabel.setAttributeNode(att);
+
+newtimelabel.innerHTML=task[i];
+document.getElementById("paddedline").appendChild(newtimelabel);
+  
+  
+   
+var newtimelabel = document.createElement("br");
+document.getElementById("paddedline").appendChild(newtimelabel);
+} 
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function removeinlinestyle(activeEditPanel){
+  var activeEditPanel=document.getElementById(activeEditPanel);
+  var styleremove=activeEditPanel.querySelectorAll(".Meeting-notes");
+  Array.prototype.forEach.call(styleremove, function(element){
+    var target = element.querySelectorAll('*');
+    Array.prototype.forEach.call(target, function(element){
+    element.removeAttribute('style');
+    });    
+  });  
+}
+
+
+//trigerred by on key up and active ID is sent
+function saveEdits(editElem) {
+  	//var editElem = document.activeElement.offsetParent.id;
+  
+  //get the edited element content
+  var userVersion = document.getElementById(editElem).innerHTML;
+    
+  if(userVersion.length<1){
+  userVersion="<span>"+userVersion+ "</span>";
+  }
+//console.log(document.activeElement.tagName);
+	//save the content to local storage
+	//localStorage.editElem = userVersion;
+  localStorage.setItem(editElem, userVersion);
+}
+
+
+
+
+
+function createnotes(){  
+//get a unique id based on today and current time  
+    var today = new Date();
+	var dd = today.getDate();
+	var mm = today.getMonth()+1;
+	var yyyy = today.getFullYear();
+    var hh = today.getHours();
+    var mn = today.getMinutes();
+    var ss = today.getSeconds();
+    var ms = today.getMilliseconds();
+    
+	if(dd<10) {dd='0'+dd};
+	if(mm<10) {mm='0'+mm};
+  	today = yyyy.toString()+dd.toString()+mm.toString()+hh.toString()+mn.toString()+ss.toString()+ms.toString();
+  
+     var newnotes = document.createElement("div");
+  
+      var att = document.createAttribute("class"); 
+      att.value = "edit panel";                          
+      newnotes.setAttributeNode(att);
+      
+      var todaytimeline="timeline"+today;
+      var todayprojectnotes = "projectnotes"+today;
+      var todayprojectdetails = "projectdetails"+today;
+      var todaypanel = "todaypanel"+today;
+      var todayActionItems = "todayActionItems"+today;
+      var todayActionItemslist = "todayActionItemslist"+today;
+      var todayraid="todayraid"+today;
+      var todayraidlist="todayraidlist"+today;
+      
+      newnotes.innerHTML = 
+'<div class="panel-default"><div class ="panel-heading"><h3 class="panel-title"><span contenteditable="true">Project Title</span><span class="titlebtngroup"><button>A</button><button>R</button><button>A</button><button>I</button><button>D</button><button class="collapse-button" onclick="collapsepanelbody('+todaypanel+')">+</button></span></span></h3></div><div id='+todaypanel+'  class="panel-body cardcollapse"><div class="card timeline"><div class="container"><div class="card-heading"><h4><b>Timeline</b><button class="titlebtngroup" onclick="collapsepanelbody('+todaytimeline+')">V</button></h4></div><div   id='+todaytimeline+' class="cardcollapse"><p>To be updated</p></div></div></div><div class="card raid"><div class="container"><div class="card-heading"><h4><b>Raid</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayraid+')">V</button></h4></div><div  id='+todayraid+' class="cardcollapse" ><ol class="raidlist" id='+todayraidlist+'></div></div></div><div class="card actionitems"><div class="container"><div class="card-heading"><h4><b>Action Items</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayActionItems+')">V</button></h4></div><div  id='+todayActionItems+' class="cardcollapse"><ol class="actiontaglist action" id='+todayActionItemslist+'><div style="display:none;"><ol class="actionCompletedlist"></ol></div></div></div></div><div class="card projectdetails"><div class="container"><div class="card-heading"><h4><b>Project Details</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayprojectdetails+')">V</button></h4></div><div  id='+todayprojectdetails+' class="cardcollapse" contenteditable="true"><p>Project Details to be updated</p></div></div></div><div class="card meetingnotes"><div class="container"><div class="card-heading"><h4><b>Meeting/Project Notes</b><button class="titlebtngroup" onclick="collapsepanelbody('+todayprojectnotes+')">V</button></h4></div><div id='+todayprojectnotes+' class="cardcollapse"><button class="addNotesPlus" onclick="insertNotesSection()">+</button><div class="Meeting-notes"><div class="notesSection" contenteditable="true"><p><span>Meeting notes and project notes to be updated</span></p></div></div></div></div></div></div></div>'
+;
+      att = document.createAttribute("id"); 
+      att.value = today;                          
+      newnotes.setAttributeNode(att); 
+  
+  //notes list in local storage
+  if(localStorage.noteslist!=null) {
+    var value = localStorage.getItem("noteslist");
+    localStorage.setItem("noteslist", value+","+today);
+    }else{ 
+        localStorage.setItem("noteslist",today);
+      }
+   
+  //document.body.appendChild(newnotes);
+  var notesarea = document.getElementById("notesarea");
+   notesarea.insertBefore(newnotes, notesarea.childNodes[0]);
+   
+ //body.insertBefore(newnotes,body.childNodes[0])
+ 
+  var userVersion = document.getElementById(today).innerHTML;
+  //var userVersion = this.innerHTML;
+    localStorage.setItem(today, userVersion);
+    attachEventListener();
+}
+//triggered at the end of createnotes()
+function attachEventListener(){
+  var x = document.getElementsByClassName("meetingnotes");
+for (var i = 0; i < x.length; i++) {
+//x[i].addEventListener("blur", focusTriggeredTagsUpdate, true);
+x[i].addEventListener("blur", function(){focusTriggeredTagsUpdate(LastActiveId);},true);
+  
+x[i].addEventListener('paste',function(){updateSpanToPtags(ActiveId,e);},true);//doesn't seem to be working
+//x[i].addEventListener('paste',function(){console.log(ActiveId);},true);
+}
+}
+
+
+
+
+function insertNotesSection(){
+  var notesSection = document.getElementById(ActiveId);
+  notesSection= notesSection.getElementsByClassName("Meeting-notes")[0];
+  
+  var insertNotesSection = document.createElement("div");
+  
+  var att = document.createAttribute("class"); 
+      att.value = "notesSection";                          
+      insertNotesSection.setAttributeNode(att);
+  
+  att = document.createAttribute("contenteditable"); 
+        att.value = "true";                          
+        insertNotesSection.setAttributeNode(att)
+        
+    var now = new Date();
+	var dd = now.getDate();
+	var mm = now.getMonth()+1;
+	var yyyy = now.getFullYear();
+    var hh = now.getHours();
+    var mn = now.getMinutes();
+    var ss = now.getSeconds();
+    var ms = now.getMilliseconds();    
+	if(dd<10) {dd='0'+dd};
+	if(mm<10) {mm='0'+mm};
+  	now = yyyy.toString()+dd.toString()+mm.toString()+hh.toString()+mn.toString()+ss.toString()+ms.toString();
+    att = document.createAttribute("id"); 
+    att.value = "notesSection"+now;                          
+    insertNotesSection.setAttributeNode(att); 
+  
+  
+   insertNotesSection.innerHTML =
+  '<p><span>Meeting notes and project notes to be updated</span></p>'
+  ;
+  notesSection.insertBefore(insertNotesSection, notesSection.childNodes[0]);  
+}
+
+
+
+ 
+//To Extract text from the local storage and updated into the page. This is triggered when the page loads
+function checkEdits(){
+  if(localStorage.noteslist!=null) {
+      var localnoteslist = localStorage.getItem("noteslist");
+      var noteslistarray = localnoteslist.split(",");
+      noteslistarray.sort();
+      noteslistarray.reverse();
+      for (var i = 0; i < noteslistarray.length; i++) {
+        var localnotesid = noteslistarray[i];
+        var localnotesvalue = localStorage.getItem(localnotesid);
+        console.log(localnotesid);
+        var newnotes = document.createElement("div");
+      
+        var att = document.createAttribute("class"); 
+        att.value = "edit panel";                          
+        newnotes.setAttributeNode(att);
+
+        /*att = document.createAttribute("contenteditable"); 
+        att.value = "true";                          
+        newnotes.setAttributeNode(att);	*/
+  
+        att = document.createAttribute("id"); 
+        att.value = localnotesid;                          
+        newnotes.setAttributeNode(att);
+    
+        newnotes.innerHTML = localnotesvalue;
+        notesarea.appendChild(newnotes);  
+        
+        //focusTriggeredTagsUpdate(localnotesid);
+       
+      }
+  }
+  document.getElementById("dates").innerHTML=localStorage.getItem("dates");
+  document.getElementById("action-item").innerHTML=localStorage.getItem("action-item");
+  document.getElementById("raid-item").innerHTML=localStorage.getItem("raid-item");
+  
+  //Collapse all panels
+  
+   //var list = document.getElementsByClassName("panel-body");
+   var list = document.querySelectorAll(".panel-body");
+    for (var i = 0; i < list.length; i++) {
+   list[i].classList.add('rad-collapse');
+    }
+}
+
+
+function collapsepanelbody(id){
+ if(id.classList.contains('rad-collapse')){
+    id.classList.remove('rad-collapse');
+  }else{id.classList.add('rad-collapse');}  
+  focusTriggeredTagsUpdate(ActiveId); // when this is triggered when the page loads the activeID does get captured.
+}
+
+
+
+
+
+
+
+
+
+
+
+function liststorage(){
+  for (var i = 0; i < localStorage.length; i++) {
+  // set iteration key name
+  var key = localStorage.key(i);
+  // use key name to retrieve the corresponding value
+  var value = localStorage.getItem(key);
+  // console.log the iteration key and value
+  console.log('Key: ' + key + ', Value: ' + value);
+  }  
+}
+
+
+function Removelocalnotes(){
+  for (var i = 0; i < localStorage.length; i++) {
+  // set iteration key name
+  var key = localStorage.key(i);
+  // use key name to retrieve the corresponding value
+  var value = localStorage.getItem(key);  
+  localStorage.removeItem(key);    
+  // console.log the iteration key and value
+  console.log('Key: ' + key + ', Value: ' + value + 'to be removed')
+  }  
+}
+
+
+
+function changeElement() {
+  var el = document.getElementsByClassName("paddedline");
+  el.style.color = "red";
+  el.style.fontSize = "15px";
+  el.style.backgroundColor = "#FFFFFF";
+}
+
+
+function updatechart(e){
+  console.clear();
+var eleremove = document.getElementById("Timelabel")
+while (eleremove.lastChild) {eleremove.lastChild.remove();}
+eleremove = document.getElementById("paddedline")
+while (eleremove.lastChild) {eleremove.lastChild.remove();}
+  
+//var edit = document.getElementById("dates"); 
+e="projectnotes"+e;
+var edit=document.getElementById(e);
+  
+var divtext = edit.getElementsByTagName("p")
+var taskstartdate = [];
+var taskenddate = [];
+var task = [];
+var taskwholeline = [];
+var found2=[];
+var strtemp;
+var dateregex = /(\d{2}|\d{1})([\-/ \.])([0-9]{2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)([\-/ \.])\d{4}|(\d{2}|\d{1})([\-/ \.])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/gi;
+var j=0;
+var thisyear=new Date().getFullYear();
+var startcolumnleft =2;
+var endcolumnleft = 97;
+var numberofweeks = 0;
+var months = ["Jan", "Feb", "Mar","Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+
+//SPILIT EACH LINE AND EXTRACT THE START DATE, END DATE AND THE TASK NAME INTO AN ARRAY
+for(i=0;i<divtext.length;i++){
+str=divtext[i].innerHTML; //console.log("Text Capture: "+str);
+found2=str.match(dateregex);
+if(found2!=null){//console.log("dateregex : "+found2);
+taskwholeline[j]=str;
+if(found2[0]!=null){if(found2[0].length<7){taskstartdate[j]=new Date(found2[0]+" "+thisyear);}else{taskstartdate[j]=new Date(found2[0]);}}
+if(found2[1]!=null){if(found2[1].length<7){taskenddate[j]=new Date(found2[1]+" "+thisyear);}else{taskenddate[j]=new Date(found2[1]);}}
+strtemp = str.replace(found2[0],"");
+strtemp = strtemp.replace(found2[1],"");
+task[j]=strtemp.trim();
+//console.log("Startdate Capture: "+taskstartdate[j]);
+//console.log("Enddate Capture: "+taskenddate[j]);
+//console.log("Task Name Capture: "+task[j]);
+j++;
+} 
+}
+
+
+//FIND THE START AND FINISH OF THE CHART
+  
+//convert the date string into date format
+var startdateformat = new Date(Math.min.apply(null,taskstartdate));
+var enddateformat = new Date(Math.max.apply(null, taskenddate));
+if(taskenddate.length<1){enddateformat = new Date(Math.max.apply(null, taskstartdate));}
+//console.log("startdateformat : "+startdateformat);
+//console.log("enddateformat : "+enddateformat);
+//console.log("taskenddate : " + taskenddate);
+  
+//find the start and end of the week
+startdateformat = new Date(startdateformat.setDate(startdateformat.getDate() - startdateformat.getDay()));
+enddateformat = new Date(enddateformat.setDate(enddateformat.getDate() - enddateformat.getDay()+6));
+//console.log("chart start: "+startdateformat);
+//console.log("chart end: "+enddateformat);
+
+//find the number of weeks and the width of a week and a day
+var UTCa = Date.UTC(startdateformat.getFullYear(), startdateformat.getMonth(), startdateformat.getDate());
+var UTCb = Date.UTC(enddateformat.getFullYear(), enddateformat.getMonth(), enddateformat.getDate());
+var today = Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); 
+var todayUTCaDiff = (((Math.floor((today - UTCa)/(1000 * 60 * 60 * 24)))).toFixed(0));  //diff from startdate and today's date
+  //console.log("UTCa : "+ UTCa);
+  //console.log("UTCb : "+ UTCb);
+  //console.log("UTCb-UTCa : "+ (UTCb - UTCa));
+   //console.log("today-UTCa : "+ todayUTCaDiff);
+  
+numberofweeks = (((Math.floor((UTCb - UTCa)/(1000 * 60 * 60 * 24)))/7).toFixed(0));
+ //console.log("numberofweeks : "+ numberofweeks); 
+var colwidth = (endcolumnleft-startcolumnleft)/(+numberofweeks+1);
+var onedaywidth = colwidth/7; 
+//console.log("NumberOfWeeks: "+(+numberofweeks+1));
+//console.log("colwidth: "+(+colwidth));  
+//console.log("onedaywidth: "+onedaywidth);
+
+  
+  
+  
+  
+
+//UPDATE THE WEEK COLUMNS
+for(var i=0; i<=(+numberofweeks+2); i++)
+{
+
+//create today vertical line if it is within the date range of the chart  
+if(i==(+numberofweeks+2) && ((onedaywidth*todayUTCaDiff)+startcolumnleft)<97){
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "vl todayline";                          
+newtimelabel.setAttributeNode(att);
+att = document.createAttribute("style"); 
+att.value = "left:"+((onedaywidth*todayUTCaDiff)+startcolumnleft)+"%";                          
+newtimelabel.setAttributeNode(att);
+//console.log("i"+i);
+//console.log("startdate"+startdateformat);
+document.getElementById("Timelabel").appendChild(newtimelabel);
+  }
+  
+  //Create the vertical weekly lines
+  else{  
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "vl";                          
+newtimelabel.setAttributeNode(att);
+att = document.createAttribute("style"); 
+att.value = "left:"+((colwidth*i)+startcolumnleft)+"%";                          
+newtimelabel.setAttributeNode(att);
+//console.log("i"+i);
+//console.log("startdate"+startdateformat);
+
+  document.getElementById("Timelabel").appendChild(newtimelabel);
+  
+
+    //create the datelabel class
+  
+  newtimelabel=document.createElement("div");
+  att = document.createAttribute("class"); 
+  att.value = "datelabel";  
+  newtimelabel.setAttributeNode(att);
+  
+  att = document.createAttribute("style"); 
+  att.value = "left:"+((colwidth*i)+startcolumnleft-1.5)+"%";                          
+  newtimelabel.setAttributeNode(att);
+  
+
+//newtimelabel.innerHTML=startdateformat.getDate() + "-" + months[startdateformat.getMonth()] + "-" + startdateformat.getFullYear();
+newtimelabel.innerHTML=startdateformat.getDate() + "-" + months[startdateformat.getMonth()];
+var nextweek = new Date(startdateformat.setDate(startdateformat.getDate()+7))
+
+document.getElementById("Timelabel").appendChild(newtimelabel);   
+  }
+}
+
+ 
+  
+//CREATE PADDED LINE(GRAPH LINES)
+  
+for(var i=0; i<taskstartdate.length; i++){
+
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "paddedline";      
+newtimelabel.setAttributeNode(att);
+newtimelabel.innerHTML=str;
+  
+ var UTCb=""; 
+  var UTCc="";
+  var thistaskstart="";
+  var thistaskend="";
+
+//console.log("Task "+[i]+" startdate "+taskstartdate[i]);
+//console.log("Task "+[i]+" taskenddate "+taskenddate[i]);
+UTCb = Date.UTC(taskstartdate[i].getFullYear(), taskstartdate[i].getMonth(), taskstartdate[i].getDate());
+thistaskstart = Math.floor((UTCb - UTCa)/(1000 * 60 * 60 * 24).toFixed(0))*onedaywidth;
+  
+  
+  if(taskenddate[i]!=null){
+UTCc = Date.UTC(taskenddate[i].getFullYear(), taskenddate[i].getMonth(), taskenddate[i].getDate());    
+    thistaskend = Math.floor((UTCc - UTCa)/(1000 * 60 * 60 * 24).toFixed(0))*onedaywidth;
+    if(thistaskend>thistaskstart){thistaskend = thistaskend-thistaskstart;}
+    else{thistaskend=onedaywidth;
+        }
+  }else{
+    thistaskend=onedaywidth/2;
+  }
+
+thistaskstart = thistaskstart+startcolumnleft;
+
+
+//console.log("This Task "+[i]+" start position "+thistaskstart);
+//console.log("This Task "+[i]+" End position "+thistaskend);
+  
+  
+//console.log("This Task "+[i]+" updated start position "+thistaskstart);
+//console.log("This Task "+[i]+" updated End position "+thistaskend);
+  
+att = document.createAttribute("style"); 
+att.value = "left:"+(+thistaskstart)+"%; padding-right: "+(thistaskend)+"%; background-color: #40bAA4";
+newtimelabel.setAttributeNode(att);
+document.getElementById("paddedline").appendChild(newtimelabel);
+  
+  
+  
+var newtimelabel = document.createElement("div");
+var att = document.createAttribute("class"); 
+att.value = "labels";      
+newtimelabel.setAttributeNode(att);
+  
+att = document.createAttribute("style"); 
+att.value = "left:"+(+thistaskstart+thistaskend+1)+"%;";
+newtimelabel.setAttributeNode(att);
+
+newtimelabel.innerHTML=task[i];
+document.getElementById("paddedline").appendChild(newtimelabel);
+  
+  
+   
+var newtimelabel = document.createElement("br");
+document.getElementById("paddedline").appendChild(newtimelabel);
+} 
+  
+}
+
+
+function hidechartdata(){
+var dataforchart = document.getElementById("dataforchart");  
+  if (dataforchart.style.display == 'none') {
+    dataforchart.style.display = 'flex';
+  } else {
+    dataforchart.style.display = 'none';
+  }
+}
+
+function titleCase(str) {
+  return str.toLowerCase().split(' ').map(function(word) {
+    return word.replace(word[0], word[0].toUpperCase());
+  }).join(' ');
+}
+    </script>
+</head>
+<body onload=loadnotes()>
+<div id="toprow" class="flex-top">
+<!---   <p id="date"></p>
+---->
+  <button class="button" onclick="createnotes()">Create Notes Section</button>  
+<!---  <button class="button" onclick="highlight()">Create Tags</button>  
+  <button class="button" onclick="liststorage()">List Storage</button>  
+  <button class="button" onclick="changeElement()">changeElement</button>
+  <button class="button" onclick="updatechart()">updatechart</button>  
+  <button class="button" onclick="hidechartdata()">Show/Hide Chart Data</button>  
+  <button class="button" onclick="removehighlight()">Remove Highlight</button>  
+  <button class="button" onclick="Removelocalnotes()">Removelocalnotes</button>
+---->  </div>
+  
+<div id="summaryarea">
+  <div id="Timelabel"></div>
+  <div id ="paddedline"></div>   
+</div>
+
+  <!---
+  <div id="dataforchart" class="flex-container">
+    <div id ="dates" contenteditable="true" class="edit topdetailspanel"><div><h3>Dates:</h3><br></div></div>
+    <div id ="action-item" contenteditable="true" class="edit topdetailspanel"><h3>Action Item</h3><br></div>
+    <div id ="raid-item" contenteditable="true" class="edit topdetailspanel"><h3>Raid</h3><br></div>
+  </div>
+  ---->
+<div id = "notesarea"></div>
+  
+</body>
+</html>
